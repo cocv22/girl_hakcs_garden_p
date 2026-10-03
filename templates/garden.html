@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Your Garden</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <main class="container">
+
+        <h1>Your Garden</h1>
+
+        <p>Based on your answers, we recommend:</p>
+
+        <div class="garden">
+
+            {% for plant in plants %}
+
+                <div class="plant">
+                    🌱 {{ plant }}
+                </div>
+
+            {% endfor %}
+
+        </div>

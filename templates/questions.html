@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Garden Questions</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <main class="container">
+
+        <h1>Tell Us About Your Garden</h1>
+
+        <form action="/garden" method="POST">
+
+            <h2>How much sunlight does your garden get?</h2>
+
+            <label>
+                <input type="radio" name="sun" value="sunny" required>
+                Lots of sunlight
+            </label>
+
+            <label>
+                <input type="radio" name="sun" value="shady">
+                Mostly shade
+            </label>
+
+            <h2>How often can you water your plants?</h2>
+
+            <label>
+                <input type="radio" name="water" value="low" required>
+                Not very often
+            </label>
+
+            <label>
+                <input type="radio" name="water" value="high">
+                Frequently
+            </label>
+
+            <h2>How experienced are you with gardening?</h2>
+
+            <label>
+                <input type="radio" name="experience" value="beginner" required>
+                Beginner
+            </label>
+
+            <label>
+                <input type="radio" name="experience" value="experienced">
+                Experienced
+            </label>
+
+            <br>
+
+            <button type="submit">
+                Create My Garden
+            </button>
+
+        </form>
+
+    </main>
+
+</body>
+</html>

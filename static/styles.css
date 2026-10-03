@@ -1,0 +1,50 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f4f4f4;
+}
+
+.container {
+    max-width: 700px;
+    margin: 60px auto;
+    padding: 30px;
+    background: white;
+    border-radius: 12px;
+}
+
+h1 {
+    margin-bottom: 10px;
+}
+
+h2 {
+    margin-top: 30px;
+}
+
+label {
+    display: block;
+    margin: 12px 0;
+}
+
+button,
+.button {
+    display: inline-block;
+    margin-top: 25px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.garden {
+    margin: 25px 0;
+}
+
+.plant {
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    background: #eee;
+}
