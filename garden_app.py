@@ -27,9 +27,19 @@ def init_db():
                 sun TEXT NOT NULL,
                 water TEXT NOT NULL,
                 experience TEXT NOT NULL,
+                rows INTEGER NOT NULL DEFAULT 20,
+                columns INTEGER NOT NULL DEFAULT 20,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )"""
         )
+        # Add grid dimensions for databases created by earlier versions.
+        garden_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(gardens)")
+        }
+        if "rows" not in garden_columns:
+            connection.execute("ALTER TABLE gardens ADD COLUMN rows INTEGER NOT NULL DEFAULT 20")
+        if "columns" not in garden_columns:
+            connection.execute("ALTER TABLE gardens ADD COLUMN columns INTEGER NOT NULL DEFAULT 20")
 
 
 init_db()
@@ -38,6 +48,13 @@ def ChooseRandomTile(rng=None):
     x = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
     y = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
     return (x, y)
+
+def choose_random_tile_for_grid(garden, rng):
+    """Choose an interior tile so neighborhood operations stay inside the grid."""
+    draw = rng.randint if rng is numpy.random else rng.integers
+    row = draw(1, garden.shape[0] - 1)
+    column = draw(1, garden.shape[1] - 1)
+    return row, column
 
 def AddStuffToTileCircleR2(x, y, Garden):
     #sorry to your eyes, Its not easy on my eyes
@@ -95,8 +112,10 @@ def StrikeStuffFromTile(x, y, Amount, Garden):
 def DecayStuffFromTile(x, y, Amount, Garden):
     Garden[x][y][2] += Amount
 def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Garden,rng=None):
+    if rng is None:
+        rng = numpy.random.default_rng()
     while PositiveTotal > 0:
-        x, y = ChooseRandomTile(rng)
+        x, y = choose_random_tile_for_grid(Garden, rng)
         if PositiveTotal > 6:
             # add circle adder
             AddStuffToTileCircleR2(x, y, Garden)
@@ -105,15 +124,15 @@ def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Gard
             AddStuffToTile(x, y, PositiveTotal, Garden)
             PositiveTotal = 0
     while NegativeTotal1 > 0:
-        x, y = ChooseRandomTile(rng)
+        x, y = choose_random_tile_for_grid(Garden, rng)
         RemoveStuffFromTile(x, y, 1, Garden)
         NegativeTotal1 -= 1
     while NegativeTotal2 >= 50:
-        x, y = ChooseRandomTile(rng)
+        x, y = choose_random_tile_for_grid(Garden, rng)
         StrikeStuffFromTile(x, y, 50, Garden)
         NegativeTotal2 -= 50
     while Decay > 0:
-        x, y = ChooseRandomTile(rng)
+        x, y = choose_random_tile_for_grid(Garden, rng)
         DecayStuffFromTile(x, y, 1, Garden)
         Decay -= 1
 
@@ -135,16 +154,18 @@ def GetTier(value, tiers):
 
 
 def RealizeDecay(Garden,Tiers):
-    for x in range(20):
-        for y in range(20):
+    for x in range(Garden.shape[0]):
+        for y in range(Garden.shape[1]):
             remaining = max(0, Garden[x][y][0] - Garden[x][y][2])
             if GetTier(Garden[x][y][0], Tiers) > GetTier(remaining, Tiers):
                Garden[x][y][0] = remaining
 
 
 def build_garden_grid(preferences, user_id):
-    """Turn saved preferences into simulation inputs and a stable 20x20 grid."""
-    garden_grid = numpy.zeros((20, 20, 3), dtype=int)
+    """Turn saved preferences into simulation inputs and a sized garden grid."""
+    rows = preferences["rows"]
+    columns = preferences["columns"]
+    garden_grid = numpy.zeros((rows, columns, 3), dtype=int)
     sunny = preferences["sun"] == "sunny"
     high_water = preferences["water"] == "high"
     experienced = preferences["experience"] == "experienced"
@@ -227,7 +248,13 @@ def login():
 def questions():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    return render_template("questions.html")
+    with sqlite3.connect(DATABASE) as connection:
+        connection.row_factory = sqlite3.Row
+        preferences = connection.execute(
+            "SELECT sun, water, experience, rows, columns FROM gardens WHERE user_id = ?",
+            (session["user_id"],),
+        ).fetchone()
+    return render_template("questions.html", preferences=preferences)
 
 
 def recommend_plants(sun, water, experience):
@@ -249,7 +276,7 @@ def garden():
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             preferences = connection.execute(
-                "SELECT sun, water, experience FROM gardens WHERE user_id = ?",
+                "SELECT sun, water, experience, rows, columns FROM gardens WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
 
@@ -268,20 +295,29 @@ def garden():
     sun = request.form.get("sun")
     water = request.form.get("water")
     experience = request.form.get("experience")
+    try:
+        rows = int(request.form.get("rows", "20"))
+        columns = int(request.form.get("columns", "20"))
+    except ValueError:
+        rows = columns = 0
 
-    if sun not in {"sunny", "shady"} or water not in {"low", "high"} or experience not in {"beginner", "experienced"}:
-        flash("Please answer each question to set up your garden.", "error")
+    if (sun not in {"sunny", "shady"} or water not in {"low", "high"}
+            or experience not in {"beginner", "experienced"}
+            or not 3 <= rows <= 30 or not 3 <= columns <= 30):
+        flash("Please answer each question and choose grid dimensions from 3 to 30.", "error")
         return redirect(url_for("questions"))
 
     with sqlite3.connect(DATABASE) as connection:
         connection.execute(
-            """INSERT INTO gardens (user_id, sun, water, experience)
-               VALUES (?, ?, ?, ?)
+            """INSERT INTO gardens (user_id, sun, water, experience, rows, columns)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    sun = excluded.sun,
                    water = excluded.water,
-                   experience = excluded.experience""",
-            (user_id, sun, water, experience),
+                   experience = excluded.experience,
+                   rows = excluded.rows,
+                   columns = excluded.columns""",
+            (user_id, sun, water, experience, rows, columns),
         )
     return redirect(url_for("garden"))
 

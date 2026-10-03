@@ -22,7 +22,7 @@
         {% endif %}
         {% if grid %}
         <section class="garden-map" aria-label="Your simulated garden grid">
-            <div class="garden-grid" role="img" aria-label="20 by 20 garden grid. Darker green tiles contain more growth.">
+            <div class="garden-grid" role="img" aria-label="{{ grid|length }} by {{ grid[0]|length }} garden grid. Darker green tiles contain more growth." style="grid-template-columns: repeat({{ grid[0]|length }}, minmax(0, 1fr)); aspect-ratio: {{ grid[0]|length }} / {{ grid|length }};">
                 {% for row in grid %}
                     {% for tile in row %}
                         {% set growth = tile[0] %}
