@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import numpy
 from pathlib import Path
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -32,7 +33,110 @@ def init_db():
 
 
 init_db()
+def ChooseRandomTile():
+    x = numpy.random.randint(1, 19)
+    y = numpy.random.randint(1, 19)
+    return (x, y)
 
+def AddStuffToTileCircleR2(x, y, Garden):
+    #sorry to your eyes, Its not easy on my eyes
+    AddStuffToTile(x, y, 2, Garden)
+    AddStuffToTile(x + 1, y,1, Garden)
+    AddStuffToTile(x - 1, y,1, Garden)
+    AddStuffToTile(x, y + 1,1, Garden)
+    AddStuffToTile(x, y - 1,1, Garden)
+
+def AddStuffToTile(x, y, Amount, Garden):
+    if Garden[x][y][1] > 0:
+        Garden[x][y][1] -= Amount
+    elif Garden[x][y][2] < 0:
+        Garden[x][y][2] -= Amount
+    else:
+        Garden[x][y][0] += Amount
+
+def RemoveStuffFromTile(x, y, Amount, Garden):
+    if Garden[x][y][0] > 0:
+        Garden[x][y][0] -= Amount
+    else:
+        Garden[x][y][1] += Amount
+
+def StrikeStuffFromTile(x, y, Amount, Garden):
+    if Garden[x][y][0] < 35:
+        Garden[x][y][0] = 0
+        Garden[x][y][1] = 20
+    else:
+        Garden[x][y][0] -= 20
+
+    if Garden[x-1][y][0] < 10:
+        Garden[x-1][y][0] = 0
+        Garden[x-1][y][1] = 5
+    else:
+        Garden[x-1][y][0] -= 5
+
+    if Garden[x+1][y][0] < 10:
+        Garden[x+1][y][0] = 0
+        Garden[x+1][y][1] = 5
+    else:
+        Garden[x+1][y][0] -= 5
+
+    if Garden[x][y+1][0] < 10:
+        Garden[x][y+1][0] = 0
+        Garden[x][y+1][1] = 5
+    else:
+        Garden[x][y+1][0] -= 5
+
+    if Garden[x][y-1][0] < 10:
+        Garden[x][y-1][0] = 0
+        Garden[x][y-1][1] = 5
+    else:
+        Garden[x][y-1][0] -= 5
+
+def DecayStuffFromTile(x, y, Amount, Garden):
+    Garden[x][y][2] += Amount
+def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Garden):
+    while PositiveTotal > 0:
+        x, y = ChooseRandomTile()
+    if (PositiveTotal > 6):
+            # add circle adder
+            AddStuffToTileCircleR2(x, y, Garden)
+            PositiveTotal -= 6
+    else:
+            AddStuffToTile(x, y, PositiveTotal, Garden)
+            PositiveTotal -= 1 
+    while NegativeTotal1 > 0:
+        x, y = ChooseRandomTile()
+        RemoveStuffFromTile(x, y, 1, Garden)
+        NegativeTotal1 -= 1
+    while NegativeTotal2 >= 50:
+        StrikeStuffFromTile(x, y, 50, Garden)
+        NegativeTotal2 -= 50
+    while Decay > 0:
+        x, y = ChooseRandomTile()
+        DecayStuffFromTile(x, y, 1, Garden)
+        Decay -= 1
+
+    return(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay)
+
+def GetTier(value, tiers):
+    low = 0
+    high = len(tiers)  # exclusive upper bound
+
+    while low < high:
+        mid = (low + high) // 2
+
+        if tiers[mid] <= value:
+            low = mid + 1
+        else:
+            high = mid
+
+    return max(0, low - 1)
+
+
+def RealizeDecay(Garden,Tiers):
+    for x in range(20):
+        for y in range(20):
+            if GetTier(Garden[x][y][0]) > GetTier(Garden[x][y][0] - Garden[x][y][2]):
+               Garden[x][y][0] = Garden[x][y][0] - Garden[x][y][2]
 
 @app.route("/")
 def home():
