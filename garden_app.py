@@ -33,9 +33,10 @@ def init_db():
 
 
 init_db()
-def ChooseRandomTile():
-    x = numpy.random.randint(1, 19)
-    y = numpy.random.randint(1, 19)
+def ChooseRandomTile(rng=None):
+    rng = rng or numpy.random
+    x = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
+    y = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
     return (x, y)
 
 def AddStuffToTileCircleR2(x, y, Garden):
@@ -93,25 +94,26 @@ def StrikeStuffFromTile(x, y, Amount, Garden):
 
 def DecayStuffFromTile(x, y, Amount, Garden):
     Garden[x][y][2] += Amount
-def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Garden):
+def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Garden,rng=None):
     while PositiveTotal > 0:
-        x, y = ChooseRandomTile()
-    if (PositiveTotal > 6):
+        x, y = ChooseRandomTile(rng)
+        if PositiveTotal > 6:
             # add circle adder
             AddStuffToTileCircleR2(x, y, Garden)
             PositiveTotal -= 6
-    else:
+        else:
             AddStuffToTile(x, y, PositiveTotal, Garden)
-            PositiveTotal -= 1 
+            PositiveTotal = 0
     while NegativeTotal1 > 0:
-        x, y = ChooseRandomTile()
+        x, y = ChooseRandomTile(rng)
         RemoveStuffFromTile(x, y, 1, Garden)
         NegativeTotal1 -= 1
     while NegativeTotal2 >= 50:
+        x, y = ChooseRandomTile(rng)
         StrikeStuffFromTile(x, y, 50, Garden)
         NegativeTotal2 -= 50
     while Decay > 0:
-        x, y = ChooseRandomTile()
+        x, y = ChooseRandomTile(rng)
         DecayStuffFromTile(x, y, 1, Garden)
         Decay -= 1
 
@@ -135,8 +137,31 @@ def GetTier(value, tiers):
 def RealizeDecay(Garden,Tiers):
     for x in range(20):
         for y in range(20):
-            if GetTier(Garden[x][y][0]) > GetTier(Garden[x][y][0] - Garden[x][y][2]):
-               Garden[x][y][0] = Garden[x][y][0] - Garden[x][y][2]
+            remaining = max(0, Garden[x][y][0] - Garden[x][y][2])
+            if GetTier(Garden[x][y][0], Tiers) > GetTier(remaining, Tiers):
+               Garden[x][y][0] = remaining
+
+
+def build_garden_grid(preferences, user_id):
+    """Turn saved preferences into simulation inputs and a stable 20x20 grid."""
+    garden_grid = numpy.zeros((20, 20, 3), dtype=int)
+    sunny = preferences["sun"] == "sunny"
+    high_water = preferences["water"] == "high"
+    experienced = preferences["experience"] == "experienced"
+
+    # Sunlight feeds growth, watering limits decay, and experience sets how much
+    # disturbance the garden simulation receives.
+    positive_total = 360 if sunny else 220
+    negative_total1 = 35 if experienced else 15
+    negative_total2 = 100 if experienced else 50
+    decay = 25 if high_water else 70
+    rng = numpy.random.default_rng(int(user_id))
+
+    ChangeGardenOversVars(
+        negative_total1, negative_total2, positive_total, decay, garden_grid, rng
+    )
+    RealizeDecay(garden_grid, [0, 10, 20, 35, 50, 75, 100])
+    return garden_grid
 
 @app.route("/")
 def home():
@@ -231,12 +256,14 @@ def garden():
         if preferences is None:
             plants = ["Basil", "Lettuce", "Marigolds"]
             needs_setup = True
+            grid = None
         else:
             plants = recommend_plants(
                 preferences["sun"], preferences["water"], preferences["experience"]
             )
             needs_setup = False
-        return render_template("garden.html", plants=plants, needs_setup=needs_setup)
+            grid = build_garden_grid(preferences, user_id).tolist()
+        return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid)
 
     sun = request.form.get("sun")
     water = request.form.get("water")

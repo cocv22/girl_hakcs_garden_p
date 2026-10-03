@@ -61,6 +61,53 @@ button,
     margin: 25px 0;
 }
 
+.garden-map {
+    width: min(100%, 560px);
+    margin: 28px auto;
+}
+
+.garden-grid {
+    display: grid;
+    grid-template-columns: repeat(20, minmax(0, 1fr));
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid #c9d8bc;
+    border-radius: 10px;
+    background: #e5edda;
+    aspect-ratio: 1;
+}
+
+.garden-tile {
+    min-width: 0;
+    border-radius: 2px;
+    background: #f4f1df;
+}
+
+.growth-1 { background: #d7e7c5; }
+.growth-2 { background: #b6d49b; }
+.growth-3 { background: #8fbd78; }
+.growth-4 { background: #669b5b; }
+.growth-5 { background: #3f7548; }
+
+.garden-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #53624e;
+    font-size: .85rem;
+}
+
+.legend-low,
+.legend-high {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    background: #f4f1df;
+}
+
+.legend-high { background: #3f7548; }
+
 .plant {
     padding: 15px;
     margin: 10px 0;

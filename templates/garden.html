@@ -16,9 +16,22 @@
         {% endwith %}
 
         {% if needs_setup %}
-            <p>Here are a few easy plants to get started. Set up your garden for recommendations tailored to your space.</p>
+            <p>Set up your sun, water, and experience preferences to grow your personalized garden grid.</p>
         {% else %}
             <p>Based on your garden preferences, here are some plants to try:</p>
+        {% endif %}
+        {% if grid %}
+        <section class="garden-map" aria-label="Your simulated garden grid">
+            <div class="garden-grid" role="img" aria-label="20 by 20 garden grid. Darker green tiles contain more growth.">
+                {% for row in grid %}
+                    {% for tile in row %}
+                        {% set growth = tile[0] %}
+                        <span class="garden-tile growth-{{ [growth // 10, 5] | min }}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"></span>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            <p class="garden-legend"><span class="legend-low"></span> Less growth <span class="legend-high"></span> More growth</p>
+        </section>
         {% endif %}
         <div class="garden">
             {% for plant in plants %}
