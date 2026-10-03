@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,13 +9,25 @@
 <body>
     <main class="container">
         <h1>Your Garden</h1>
-        <p>Based on your answers, we recommend:</p>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <p class="message {{ category }}" role="status">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        {% if needs_setup %}
+            <p>Here are a few easy plants to get started. Set up your garden for recommendations tailored to your space.</p>
+        {% else %}
+            <p>Based on your garden preferences, here are some plants to try:</p>
+        {% endif %}
         <div class="garden">
             {% for plant in plants %}
-                <div class="plant">🌱 {{ plant }}</div>
+                <div class="plant">&#127793; {{ plant }}</div>
             {% endfor %}
         </div>
-        <a class="button" href="/questions">Make another garden</a>
+        <a class="button" href="{{ url_for('questions') }}">
+            {% if needs_setup %}Set up my garden{% else %}Update my garden{% endif %}
+        </a>
     </main>
 </body>
 </html>

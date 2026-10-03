@@ -15,7 +15,13 @@
 
         <h1>Tell Us About Your Garden</h1>
 
-        <form action="/garden" method="POST">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <p class="message {{ category }}" role="alert">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        <form action="{{ url_for('garden') }}" method="POST">
 
             <h2>How much sunlight does your garden get?</h2>
 

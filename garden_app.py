@@ -20,6 +20,15 @@ def init_db():
                 password_hash TEXT NOT NULL
             )"""
         )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS gardens (
+                user_id INTEGER PRIMARY KEY,
+                sun TEXT NOT NULL,
+                water TEXT NOT NULL,
+                experience TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )"""
+        )
 
 
 init_db()
@@ -82,31 +91,68 @@ def login():
     session.clear()
     session["user_id"] = user["id"]
     flash("Welcome back!", "success")
-    return redirect(url_for("questions"))
+    return redirect(url_for("garden"))
 
 
 @app.route("/questions")
 def questions():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
     return render_template("questions.html")
 
 
-@app.route("/garden", methods=["POST"])
+def recommend_plants(sun, water, experience):
+    plants = ["Tomatoes", "Basil", "Marigolds"] if sun == "sunny" else ["Lettuce", "Spinach", "Mint"]
+    if water == "low":
+        plants.append("Rosemary, a drought-tolerant choice")
+    if experience == "beginner":
+        plants.append("Easy-to-grow herbs are a good place to start")
+    return plants
+
+
+@app.route("/garden", methods=["GET", "POST"])
 def garden():
+    user_id = session.get("user_id")
+    if user_id is None:
+        return redirect(url_for("login"))
+
+    if request.method == "GET":
+        with sqlite3.connect(DATABASE) as connection:
+            connection.row_factory = sqlite3.Row
+            preferences = connection.execute(
+                "SELECT sun, water, experience FROM gardens WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+
+        if preferences is None:
+            plants = ["Basil", "Lettuce", "Marigolds"]
+            needs_setup = True
+        else:
+            plants = recommend_plants(
+                preferences["sun"], preferences["water"], preferences["experience"]
+            )
+            needs_setup = False
+        return render_template("garden.html", plants=plants, needs_setup=needs_setup)
+
     sun = request.form.get("sun")
     water = request.form.get("water")
     experience = request.form.get("experience")
 
-    if sun == "sunny":
-        plants = ["Tomatoes", "Basil", "Marigolds"]
-    else:
-        plants = ["Lettuce", "Spinach", "Mint"]
+    if sun not in {"sunny", "shady"} or water not in {"low", "high"} or experience not in {"beginner", "experienced"}:
+        flash("Please answer each question to set up your garden.", "error")
+        return redirect(url_for("questions"))
 
-    if water == "low":
-        plants.append("A drought-tolerant plant, such as rosemary")
-    if experience == "beginner":
-        plants.append("Try starting with easy-to-grow herbs")
-
-    return render_template("garden.html", plants=plants)
+    with sqlite3.connect(DATABASE) as connection:
+        connection.execute(
+            """INSERT INTO gardens (user_id, sun, water, experience)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                   sun = excluded.sun,
+                   water = excluded.water,
+                   experience = excluded.experience""",
+            (user_id, sun, water, experience),
+        )
+    return redirect(url_for("garden"))
 
 
 if __name__ == "__main__":
