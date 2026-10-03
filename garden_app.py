@@ -2,8 +2,8 @@ import os
 import sqlite3
 from pathlib import Path
 
-from flask import Flask, flash, redirect, render_template, request, url_for
-from werkzeug.security import generate_password_hash
+from flask import Flask, flash, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "local-development-only-change-me")
@@ -48,7 +48,7 @@ def signup():
 
     try:
         with sqlite3.connect(DATABASE) as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
                 (name, email, generate_password_hash(password)),
             )
@@ -56,7 +56,32 @@ def signup():
         flash("An account with that email already exists.", "error")
         return render_template("signup.html"), 409
 
+    session["user_id"] = cursor.lastrowid
     flash("Your account was created! You can start planning your garden.", "success")
+    return redirect(url_for("questions"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html")
+
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+
+    with sqlite3.connect(DATABASE) as connection:
+        connection.row_factory = sqlite3.Row
+        user = connection.execute(
+            "SELECT id, password_hash FROM users WHERE email = ?", (email,)
+        ).fetchone()
+
+    if user is None or not check_password_hash(user["password_hash"], password):
+        flash("The email or password you entered is incorrect.", "error")
+        return render_template("login.html"), 401
+
+    session.clear()
+    session["user_id"] = user["id"]
+    flash("Welcome back!", "success")
     return redirect(url_for("questions"))
 
 

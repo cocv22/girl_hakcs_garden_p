@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f6f0">
+    <title>Log In | Little Grove</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="auth-page">
+    <main class="auth-card">
+        <a class="auth-brand" href="{{ url_for('home') }}">Little Grove</a>
+        <p class="auth-eyebrow">Welcome back</p>
+        <h1>Log in to your account</h1>
+        <p class="auth-description">Pick up where you left off and keep your garden growing.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <p class="message {{ category }}" role="alert">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        <form action="{{ url_for('login') }}" method="POST">
+            <div class="form-field">
+                <label for="email">Email address</label>
+                <input id="email" name="email" type="email" autocomplete="email" required autofocus>
+            </div>
+            <div class="form-field">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button class="auth-submit" type="submit">Log in</button>
+        </form>
+
+        <p class="auth-switch">New to Little Grove? <a href="{{ url_for('signup') }}">Create an account</a></p>
+        <a class="auth-home" href="{{ url_for('home') }}">Back to home</a>
+    </main>
+</body>
+</html>
