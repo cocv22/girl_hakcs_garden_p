@@ -90,6 +90,36 @@ def init_db():
             "UPDATE gardens SET habit_timer_started_at = ? WHERE daily_goal != '' AND habit_timer_started_at = ''",
             (datetime.now(timezone.utc).isoformat(),),
         )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS habits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                timer_started_at TEXT NOT NULL,
+                last_checkin TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )"""
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS habits_user_id_idx ON habits (user_id, id)"
+        )
+        connection.execute(
+            """INSERT INTO habits (user_id, name, timer_started_at, last_checkin)
+               SELECT g.user_id, g.daily_goal, g.habit_timer_started_at, g.last_checkin
+               FROM gardens g
+               WHERE TRIM(g.daily_goal) != ''
+                 AND NOT EXISTS (
+                     SELECT 1 FROM habits h WHERE h.user_id = g.user_id
+                 )"""
+        )
+        connection.execute(
+            """UPDATE gardens
+               SET daily_goal = '', habit_timer_started_at = ''
+               WHERE daily_goal != ''
+                 AND EXISTS (
+                     SELECT 1 FROM habits h WHERE h.user_id = gardens.user_id
+                 )"""
+        )
 
 
 init_db()
@@ -311,18 +341,26 @@ def garden():
 
     action = request.form.get("action")
     if request.method == "POST" and action == "checkin":
-        completed = request.form.get("completed") == "yes"
+        completed_value = request.form.get("completed")
+        habit_id = request.form.get("habit_id", type=int)
+        if completed_value not in {"yes", "no"}:
+            flash("Choose whether you completed this habit.", "error")
+            return redirect(url_for("garden", habit=habit_id) if habit_id else url_for("garden"))
+        completed = completed_value == "yes"
         now = datetime.now(timezone.utc)
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             preferences = connection.execute(
                 "SELECT * FROM gardens WHERE user_id = ?", (user_id,)
             ).fetchone()
-            started_at = preferences["habit_timer_started_at"] if preferences else ""
-            if (preferences is None or not preferences["daily_goal"] or not started_at
-                    or now < datetime.fromisoformat(started_at) + timedelta(hours=24)):
+            habit = connection.execute(
+                "SELECT id, timer_started_at FROM habits WHERE id = ? AND user_id = ?",
+                (habit_id, user_id),
+            ).fetchone() if habit_id else None
+            if (preferences is None or habit is None or not habit["timer_started_at"]
+                    or now < datetime.fromisoformat(habit["timer_started_at"]) + timedelta(hours=24)):
                 flash("There is no daily check-in due yet.", "error")
-                return redirect(url_for("garden"))
+                return redirect(url_for("garden", habit=habit_id) if habit_id else url_for("garden"))
             grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
             row, column = preferences["goal_tile_row"], preferences["goal_tile_column"]
             if completed:
@@ -335,19 +373,39 @@ def garden():
                 "UPDATE gardens SET grid_state = ?, goal_tile_row = ?, goal_tile_column = ?, last_checkin = ?, habit_timer_started_at = ? WHERE user_id = ?",
                 (json.dumps(grid), next_row, next_column, date.today().isoformat(), now.isoformat(), user_id),
             )
+            connection.execute(
+                "UPDATE habits SET timer_started_at = ?, last_checkin = ? WHERE id = ? AND user_id = ?",
+                (now.isoformat(), date.today().isoformat(), habit_id, user_id),
+            )
         flash("Nice work! Your garden grew by 1 point." if completed else "Your garden lost 1 point. A new 24-hour cycle has started.", "success" if completed else "error")
-        return redirect(url_for("garden"))
+        return redirect(url_for("garden", habit=habit_id))
     if request.method == "POST" and action == "save_goal":
         daily_goal = request.form.get("daily_goal", "").strip()
         if not daily_goal:
             flash("Enter a habit or goal to track.", "error")
             return redirect(url_for("garden"))
         with sqlite3.connect(DATABASE) as connection:
-            connection.execute(
-                "UPDATE gardens SET daily_goal = ?, habit_timer_started_at = ?, last_checkin = '' WHERE user_id = ?",
-                (daily_goal[:200], datetime.now(timezone.utc).isoformat(), user_id),
+            cursor = connection.execute(
+                "INSERT INTO habits (user_id, name, timer_started_at) VALUES (?, ?, ?)",
+                (user_id, daily_goal[:200], datetime.now(timezone.utc).isoformat()),
             )
-        flash("Habit saved. Your 24-hour cycle starts now.", "success")
+            habit_id = cursor.lastrowid
+        flash("Habit added. Your 24-hour cycle starts now.", "success")
+        return redirect(url_for("garden", habit=habit_id))
+    if request.method == "POST" and action == "delete_goal":
+        habit_id = request.form.get("habit_id", type=int)
+        if habit_id is None:
+            flash("Select a habit to delete.", "error")
+            return redirect(url_for("garden"))
+        with sqlite3.connect(DATABASE) as connection:
+            cursor = connection.execute(
+                "DELETE FROM habits WHERE id = ? AND user_id = ?",
+                (habit_id, user_id),
+            )
+        if cursor.rowcount != 1:
+            flash("That habit could not be found.", "error")
+        else:
+            flash("Habit deleted.", "success")
         return redirect(url_for("garden"))
     if request.method == "POST" and action in {"offer", "request", "accept", "confirm"}:
         with sqlite3.connect(DATABASE) as connection:
@@ -416,9 +474,33 @@ def garden():
             plants = []
             needs_setup = False
             grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
-        timer_started_at = datetime.fromisoformat(preferences["habit_timer_started_at"]) if preferences and preferences["habit_timer_started_at"] else None
+        with sqlite3.connect(DATABASE) as connection:
+            connection.row_factory = sqlite3.Row
+            habits = [
+                dict(habit)
+                for habit in connection.execute(
+                    "SELECT id, name, timer_started_at, last_checkin FROM habits WHERE user_id = ? ORDER BY id DESC",
+                    (user_id,),
+                ).fetchall()
+            ]
+        now = datetime.now(timezone.utc)
+        for habit in habits:
+            started_at = datetime.fromisoformat(habit["timer_started_at"])
+            next_checkin_at = started_at + timedelta(hours=24)
+            habit["next_checkin_at"] = next_checkin_at.isoformat()
+            habit["checkin_due"] = now >= next_checkin_at
+        requested_habit_id = request.args.get("habit", type=int)
+        selected_habit = next(
+            (habit for habit in habits if habit["id"] == requested_habit_id),
+            habits[0] if habits else None,
+        )
+        timer_started_at = (
+            datetime.fromisoformat(selected_habit["timer_started_at"])
+            if selected_habit else None
+        )
         next_checkin_at = timer_started_at + timedelta(hours=24) if timer_started_at else None
-        checkin_due = bool(preferences and preferences["daily_goal"] and next_checkin_at and datetime.now(timezone.utc) >= next_checkin_at)
+        checkin_due = bool(selected_habit and selected_habit["checkin_due"])
+        daily_goal = selected_habit["name"] if selected_habit else ""
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             offers = connection.execute(
@@ -463,10 +545,11 @@ def garden():
             viewing_name = None
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
                                offers=offers, buddies=buddies, viewing_name=viewing_name,
+                               habits=habits, selected_habit=selected_habit,
                                checkin_due=checkin_due,
                                next_checkin_at=next_checkin_at.isoformat() if next_checkin_at else "",
                                habit_timer_started_at=timer_started_at.isoformat() if timer_started_at else "",
-                               daily_goal=preferences["daily_goal"] if preferences else "",
+                               daily_goal=daily_goal,
                                daily_limit=preferences["daily_limit"] if preferences else 0,
                                preferences=preferences)
 

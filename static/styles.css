@@ -519,6 +519,34 @@ button,
     background: #f0f3ee;
 }
 
+.habit-picker-form {
+    margin: 0 0 18px;
+}
+
+.habit-picker-form label {
+    display: block;
+    margin: 0 0 8px;
+    color: #33473a;
+    font-size: .86rem;
+    font-weight: 700;
+}
+
+.habit-picker-form select {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 38px 10px 12px;
+    border: 1px solid #d6ded3;
+    border-radius: 7px;
+    color: #243c31;
+    background-color: #fdfefc;
+    font: inherit;
+}
+
+.habit-picker-form select:focus {
+    border-color: #52775a;
+    outline: 3px solid rgba(82, 119, 90, .16);
+}
+
 .goal-form label,
 .buddy-form label {
     margin: 0 0 8px;
@@ -568,6 +596,23 @@ button,
     margin: 10px 0 0;
     color: #718075;
     font-size: .78rem;
+}
+
+.delete-habit-form {
+    margin-top: 12px;
+}
+
+.dashboard-card .delete-habit-button {
+    min-height: 36px;
+    padding: 7px 11px;
+    border: 1px solid #e5c9c5;
+    color: #8b3931;
+    background: #fff8f7;
+    font-size: .78rem;
+}
+
+.dashboard-card .delete-habit-button:hover {
+    background: #fde8e7;
 }
 
 .checkin-panel {

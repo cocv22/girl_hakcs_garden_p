@@ -97,23 +97,42 @@
         <section class="dashboard-card goals-card" id="goals" aria-labelledby="habit-heading">
             <div class="card-heading">
                 <div>
-                    <p class="section-kicker">One small promise to yourself</p>
+                    <p class="section-kicker">Small promises to yourself</p>
                     <h2 id="habit-heading">Habit console</h2>
                 </div>
-                <span class="goal-count">{% if daily_goal %}01 active habit{% else %}Ready when you are{% endif %}</span>
+                <span class="goal-count">{{ habits|length }} active habit{% if habits|length != 1 %}s{% endif %}</span>
             </div>
-            <p class="card-description">Choose something you can come back to each day. A completed check-in adds a little growth to your garden.</p>
+            <p class="card-description">Add habits you want to keep growing. Choose an ongoing habit to see its timer and check in when it is ready.</p>
+            {% if habits %}
+            <form method="get" action="{{ url_for('garden') }}#goals" class="habit-picker-form">
+                <label for="habit-picker">Ongoing habits</label>
+                <select id="habit-picker" name="habit" onchange="this.form.submit()">
+                    {% for habit in habits %}
+                    <option value="{{ habit.id }}"{% if selected_habit and habit.id == selected_habit.id %} selected{% endif %}>{{ habit.name }}{% if habit.checkin_due %} — check-in ready{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <noscript><button type="submit">View habit</button></noscript>
+            </form>
+            {% endif %}
             <form method="post" class="goal-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="action" value="save_goal">
-                <label for="daily_goal">What will you practice?</label>
+                <label for="daily_goal">{% if habits %}Add another habit{% else %}What will you practice?{% endif %}</label>
                 <div class="goal-input-row">
-                    <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ daily_goal }}" placeholder="Take a 10-minute walk">
-                    <button type="submit">{% if daily_goal %}Save habit{% else %}Start tracking{% endif %}</button>
+                    <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required placeholder="Take a 10-minute walk">
+                    <button type="submit">Add habit</button>
                 </div>
             </form>
-            {% if daily_goal %}<p class="goal-note">Saving a new habit starts a fresh 24-hour cycle.</p>{% endif %}
-            {% if checkin_due %}
+            {% if selected_habit %}
+            <p class="goal-note">Each habit has its own 24-hour timer. Adding another habit won't reset existing timers.</p>
+            <form method="post" class="delete-habit-form" onsubmit="return confirm('Delete this habit and its timer?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="delete_goal">
+                <input type="hidden" name="habit_id" value="{{ selected_habit.id }}">
+                <button type="submit" class="delete-habit-button">Delete selected habit</button>
+            </form>
+            {% endif %}
+            {% if checkin_due and selected_habit %}
             <div class="checkin-panel" aria-labelledby="checkin-heading">
                 <div>
                     <p class="section-kicker">Your daily moment</p>
@@ -123,6 +142,7 @@
                 <form method="post" class="checkin-actions">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="action" value="checkin">
+                    <input type="hidden" name="habit_id" value="{{ selected_habit.id }}">
                     <button type="submit" name="completed" value="yes">Yes, I did</button>
                     <button type="submit" name="completed" value="no" class="secondary">Not this time</button>
                 </form>
