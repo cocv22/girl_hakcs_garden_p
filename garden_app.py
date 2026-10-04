@@ -32,6 +32,18 @@ def init_db():
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )"""
         )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS buddy_offers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_id INTEGER NOT NULL,
+                description TEXT NOT NULL,
+                recipient_id INTEGER,
+                recipient_accepted INTEGER NOT NULL DEFAULT 0,
+                owner_confirmed INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (owner_id) REFERENCES users (id),
+                FOREIGN KEY (recipient_id) REFERENCES users (id)
+            )"""
+        )
         # Add grid dimensions for databases created by earlier versions.
         garden_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(gardens)")
@@ -257,6 +269,50 @@ def garden():
     if user_id is None:
         return redirect(url_for("login"))
 
+    if request.method == "POST":
+        action = request.form.get("action")
+        with sqlite3.connect(DATABASE) as connection:
+            connection.row_factory = sqlite3.Row
+            try:
+                if action == "offer":
+                    description = request.form.get("description", "").strip()
+                    if not description:
+                        raise ValueError("Add a short note about the kind of garden buddy you want.")
+                    connection.execute(
+                        "INSERT INTO buddy_offers (owner_id, description) VALUES (?, ?)",
+                        (user_id, description[:300]),
+                    )
+                    flash("Your buddy offer is now visible to other gardeners.", "success")
+                elif action == "request":
+                    offer_id = int(request.form.get("offer_id", ""))
+                    offer = connection.execute(
+                        "SELECT owner_id, recipient_id FROM buddy_offers WHERE id = ?", (offer_id,)
+                    ).fetchone()
+                    if offer is None or offer["recipient_id"] is not None or offer["owner_id"] == user_id:
+                        raise ValueError("That buddy offer is no longer available.")
+                    connection.execute("UPDATE buddy_offers SET recipient_id = ? WHERE id = ?", (user_id, offer_id))
+                    flash("Request sent. The offer owner can confirm after you accept.", "success")
+                elif action in {"accept", "confirm"}:
+                    offer_id = int(request.form.get("offer_id", ""))
+                    offer = connection.execute(
+                        "SELECT owner_id, recipient_id, recipient_accepted FROM buddy_offers WHERE id = ?", (offer_id,)
+                    ).fetchone()
+                    if offer is None:
+                        raise ValueError("Buddy offer not found.")
+                    if action == "accept" and offer["recipient_id"] == user_id:
+                        connection.execute("UPDATE buddy_offers SET recipient_accepted = 1 WHERE id = ?", (offer_id,))
+                        flash("You accepted the buddy request. The owner can confirm it now.", "success")
+                    elif action == "confirm" and offer["owner_id"] == user_id and offer["recipient_accepted"]:
+                        connection.execute("UPDATE buddy_offers SET owner_confirmed = 1 WHERE id = ?", (offer_id,))
+                        flash("You are connected! You can now view each other's garden grids.", "success")
+                    else:
+                        raise ValueError("This action is not available for your account yet.")
+                else:
+                    raise ValueError("Unknown buddy action.")
+            except (ValueError, TypeError):
+                flash("That buddy action could not be completed. Refresh and try again.", "error")
+        return redirect(url_for("garden"))
+
     if request.method == "GET":
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
@@ -273,7 +329,50 @@ def garden():
             plants = ["Basil", "Lettuce", "Marigolds"]
             needs_setup = False
             grid = build_garden_grid(preferences, user_id).tolist()
-        return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid)
+        with sqlite3.connect(DATABASE) as connection:
+            connection.row_factory = sqlite3.Row
+            offers = connection.execute(
+                """SELECT b.*, owner.name AS owner_name, recipient.name AS recipient_name
+                   FROM buddy_offers b JOIN users owner ON owner.id = b.owner_id
+                   LEFT JOIN users recipient ON recipient.id = b.recipient_id
+                   WHERE b.owner_id = ? OR b.recipient_id = ? OR b.recipient_id IS NULL
+                   ORDER BY b.id DESC""",
+                (user_id, user_id),
+            ).fetchall()
+            buddies = connection.execute(
+                """SELECT CASE WHEN b.owner_id = ? THEN b.recipient_id ELSE b.owner_id END AS buddy_id,
+                          u.name AS buddy_name
+                   FROM buddy_offers b JOIN users u
+                     ON u.id = CASE WHEN b.owner_id = ? THEN b.recipient_id ELSE b.owner_id END
+                   WHERE (b.owner_id = ? OR b.recipient_id = ?)
+                     AND b.recipient_accepted = 1 AND b.owner_confirmed = 1""",
+                (user_id, user_id, user_id, user_id),
+            ).fetchall()
+        viewing = request.args.get("buddy", type=int)
+        if viewing:
+            authorized = any(row["buddy_id"] == viewing for row in buddies)
+            with sqlite3.connect(DATABASE) as connection:
+                connection.row_factory = sqlite3.Row
+                shared_preferences = connection.execute(
+                    "SELECT rows, columns FROM gardens WHERE user_id = ?", (viewing,)
+                ).fetchone() if authorized else None
+                buddy = connection.execute("SELECT name FROM users WHERE id = ?", (viewing,)).fetchone() if authorized else None
+            if not authorized:
+                flash("You can only view a confirmed buddy's garden.", "error")
+                return redirect(url_for("garden"))
+            if shared_preferences:
+                grid = build_garden_grid(shared_preferences, viewing).tolist()
+                plants = []
+                needs_setup = False
+            else:
+                grid = None
+                plants = []
+                needs_setup = True
+            viewing_name = buddy["name"]
+        else:
+            viewing_name = None
+        return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
+                               offers=offers, buddies=buddies, viewing_name=viewing_name)
 
     try:
         rows = int(request.form.get("rows", "20"))

@@ -8,15 +8,19 @@
 </head>
 <body>
     <main class="container">
-        <h1>Your Garden</h1>
+        <h1>{% if viewing_name %}{{ viewing_name }}'s Garden{% else %}Your Garden{% endif %}</h1>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
                 <p class="message {{ category }}" role="status">{{ message }}</p>
             {% endfor %}
         {% endwith %}
 
-        {% if needs_setup %}
+        {% if viewing_name and needs_setup %}
+            <p>{{ viewing_name }} has not set up a garden grid yet.</p>
+        {% elif needs_setup %}
             <p>Choose your grid size to set up your garden. Every tile starts with 5 growth points.</p>
+        {% elif viewing_name %}
+            <p>Viewing {{ viewing_name }}'s garden grid.</p>
         {% else %}
             <p>Your garden grid is ready. Every tile starts with 5 growth points.</p>
         {% endif %}
@@ -38,9 +42,50 @@
                 <div class="plant">&#127793; {{ plant }}</div>
             {% endfor %}
         </div>
-        <a class="button" href="{{ url_for('questions') }}">
+        {% if not viewing_name %}<a class="button" href="{{ url_for('questions') }}">
             {% if needs_setup %}Set up my garden{% else %}Update my garden{% endif %}
-        </a>
+        </a>{% endif %}
+
+        {% if not viewing_name %}
+        <section class="buddy-section" aria-labelledby="buddy-heading">
+            <h2 id="buddy-heading">Garden buddies</h2>
+            <p>Post an offer or request an open offer. Both gardeners must confirm before sharing grids.</p>
+            <form method="post" class="buddy-form">
+                <input type="hidden" name="action" value="offer">
+                <label for="buddy-description">What kind of garden buddy are you looking for?</label>
+                <input id="buddy-description" name="description" type="text" maxlength="300" required placeholder="Weekly check-ins, plant tips…">
+                <button type="submit">Post an offer</button>
+            </form>
+            {% if offers %}
+            <ul class="buddy-list">
+                {% for offer in offers %}
+                <li>
+                    <strong>{{ offer.owner_name }}</strong>: {{ offer.description }}
+                    {% if offer.owner_id == session.get('user_id') %}
+                        {% if offer.recipient_id %}
+                            <p>Request from {{ offer.recipient_name }} — {% if offer.recipient_accepted and offer.owner_confirmed %}Connected{% elif offer.recipient_accepted %}Waiting for your confirmation{% else %}Waiting for them to accept{% endif %}</p>
+                            {% if offer.recipient_accepted and not offer.owner_confirmed %}
+                            <form method="post"><input type="hidden" name="action" value="confirm"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Confirm buddy</button></form>
+                            {% endif %}
+                        {% else %}<p>Waiting for a gardener to request.</p>{% endif %}
+                    {% elif offer.recipient_id == session.get('user_id') %}
+                        {% if not offer.recipient_accepted %}
+                        <form method="post"><input type="hidden" name="action" value="accept"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Accept request</button></form>
+                        {% elif offer.owner_confirmed %}<p>Connected — you can view {{ offer.owner_name }}'s grid below.</p>
+                        {% else %}<p>You accepted. Waiting for the owner to confirm.</p>{% endif %}
+                    {% elif not offer.recipient_id %}
+                        <form method="post"><input type="hidden" name="action" value="request"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Request to connect</button></form>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}<p>No buddy offers yet. Post the first one!</p>{% endif %}
+            {% if buddies %}
+            <h3>Connected gardeners</h3>
+            <ul>{% for buddy in buddies %}<li><a href="{{ url_for('garden', buddy=buddy.buddy_id) }}">View {{ buddy.buddy_name }}'s garden grid</a></li>{% endfor %}</ul>
+            {% endif %}
+        </section>
+        {% else %}<p><a href="{{ url_for('garden') }}">Back to my garden</a></p>{% endif %}
     </main>
 </body>
 </html>
