@@ -18,8 +18,6 @@
 
         {% if viewing_name %}
             <p>Viewing {{ viewing_name }}'s garden grid.</p>
-        {% else %}
-            <p>Your garden grid is ready. Every tile starts with 5 growth points.</p>
         {% endif %}
         {% if daily_goal and not viewing_name %}
             <p><strong>Habit:</strong> {{ daily_goal }}</p>
