@@ -206,21 +206,28 @@
     <script>
         const countdown = document.getElementById("habit-countdown");
         const progress = document.getElementById("timer-progress");
-        const deadline = new Date(countdown.dataset.deadline).getTime();
-        const started = new Date(countdown.dataset.started).getTime();
-        const cycleLength = deadline - started;
-        function updateHabitCountdown() {
-            const remaining = Math.max(0, deadline - Date.now());
-            const hours = Math.floor(remaining / 3600000);
-            const minutes = Math.floor((remaining % 3600000) / 60000);
-            const seconds = Math.floor((remaining % 60000) / 1000);
-            const elapsed = Math.min(1, Math.max(0, (Date.now() - started) / cycleLength));
-            countdown.textContent = `${hours}h ${minutes}m ${seconds}s`;
-            progress.style.width = `${elapsed * 100}%`;
-            if (remaining === 0) window.location.reload();
+        if (countdown && progress) {
+            const deadline = new Date(countdown.dataset.deadline).getTime();
+            const started = new Date(countdown.dataset.started).getTime();
+            if (!Number.isNaN(deadline) && !Number.isNaN(started)) {
+                const cycleLength = Math.max(1, deadline - started);
+                function updateHabitCountdown() {
+                    const remaining = Math.max(0, deadline - Date.now());
+                    if (remaining <= 0) {
+                        window.location.reload();
+                        return;
+                    }
+                    const hours = Math.floor(remaining / 3600000);
+                    const minutes = Math.floor((remaining % 3600000) / 60000);
+                    const seconds = Math.floor((remaining % 60000) / 1000);
+                    const elapsed = Math.min(1, Math.max(0, (Date.now() - started) / cycleLength));
+                    countdown.textContent = `${hours}h ${minutes}m ${seconds}s`;
+                    progress.style.width = `${elapsed * 100}%`;
+                }
+                updateHabitCountdown();
+                setInterval(updateHabitCountdown, 1000);
+            }
         }
-        updateHabitCountdown();
-        setInterval(updateHabitCountdown, 1000);
     </script>
     {% endif %}
 </body>

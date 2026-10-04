@@ -144,11 +144,22 @@ def ChooseRandomTile(rng=None):
     return (x, y)
 
 def choose_random_tile_for_grid(garden, rng):
-    """Choose an interior tile so neighborhood operations stay inside the grid."""
+    """Choose a valid tile without crashing on small or edge-heavy grids."""
+    if garden is None or len(garden.shape) < 2:
+        raise ValueError("Garden must be a 2D array-like grid.")
+    rows, columns = garden.shape[:2]
+    if rows <= 0 or columns <= 0:
+        raise ValueError("Garden grid cannot be empty.")
+
     draw = rng.randint if rng is numpy.random else rng.integers
-    row = draw(1, garden.shape[0] - 1)
-    column = draw(1, garden.shape[1] - 1)
-    return row, column
+    row_start = 0 if rows <= 2 else 1
+    row_end = rows if rows <= 2 else rows - 1
+    column_start = 0 if columns <= 2 else 1
+    column_end = columns if columns <= 2 else columns - 1
+    row = draw(row_start, row_end)
+    column = draw(column_start, column_end)
+    return int(row), int(column)
+
 
 def AddStuffToTileCircleR2(x, y, Garden):
     #sorry to your eyes, Its not easy on my eyes
@@ -159,52 +170,56 @@ def AddStuffToTileCircleR2(x, y, Garden):
     AddStuffToTile(x, y - 1,1, Garden)
 
 def AddStuffToTile(x, y, Amount, Garden):
-    if Garden[x][y][1] > 0:
-        Garden[x][y][1] -= Amount
-    elif Garden[x][y][2] < 0:
-        Garden[x][y][2] -= Amount
+    max_row = Garden.shape[0] - 1
+    max_column = Garden.shape[1] - 1
+    row = max(0, min(int(x), max_row))
+    column = max(0, min(int(y), max_column))
+    if Garden[row][column][1] > 0:
+        Garden[row][column][1] -= Amount
+    elif Garden[row][column][2] < 0:
+        Garden[row][column][2] -= Amount
     else:
-        Garden[x][y][0] += Amount
+        Garden[row][column][0] += Amount
+
 
 def RemoveStuffFromTile(x, y, Amount, Garden):
-    if Garden[x][y][0] > 0:
-        Garden[x][y][0] -= Amount
+    max_row = Garden.shape[0] - 1
+    max_column = Garden.shape[1] - 1
+    row = max(0, min(int(x), max_row))
+    column = max(0, min(int(y), max_column))
+    if Garden[row][column][0] > 0:
+        Garden[row][column][0] -= Amount
     else:
-        Garden[x][y][1] += Amount
+        Garden[row][column][1] += Amount
 
 def StrikeStuffFromTile(x, y, Amount, Garden):
-    if Garden[x][y][0] < 35:
-        Garden[x][y][0] = 0
-        Garden[x][y][1] = 20
-    else:
-        Garden[x][y][0] -= 20
+    max_row = Garden.shape[0] - 1
+    max_column = Garden.shape[1] - 1
 
-    if Garden[x-1][y][0] < 10:
-        Garden[x-1][y][0] = 0
-        Garden[x-1][y][1] = 5
-    else:
-        Garden[x-1][y][0] -= 5
+    def bounded_tile(row, column):
+        return (max(0, min(int(row), max_row)), max(0, min(int(column), max_column)))
 
-    if Garden[x+1][y][0] < 10:
-        Garden[x+1][y][0] = 0
-        Garden[x+1][y][1] = 5
+    center_row, center_column = bounded_tile(x, y)
+    if Garden[center_row][center_column][0] < 35:
+        Garden[center_row][center_column][0] = 0
+        Garden[center_row][center_column][1] = 20
     else:
-        Garden[x+1][y][0] -= 5
+        Garden[center_row][center_column][0] -= 20
 
-    if Garden[x][y+1][0] < 10:
-        Garden[x][y+1][0] = 0
-        Garden[x][y+1][1] = 5
-    else:
-        Garden[x][y+1][0] -= 5
-
-    if Garden[x][y-1][0] < 10:
-        Garden[x][y-1][0] = 0
-        Garden[x][y-1][1] = 5
-    else:
-        Garden[x][y-1][0] -= 5
+    for neighbor_row, neighbor_column in ((x - 1, y), (x + 1, y), (x, y + 1), (x, y - 1)):
+        row, column = bounded_tile(neighbor_row, neighbor_column)
+        if Garden[row][column][0] < 10:
+            Garden[row][column][0] = 0
+            Garden[row][column][1] = 5
+        else:
+            Garden[row][column][0] -= 5
 
 def DecayStuffFromTile(x, y, Amount, Garden):
-    Garden[x][y][2] += Amount
+    max_row = Garden.shape[0] - 1
+    max_column = Garden.shape[1] - 1
+    row = max(0, min(int(x), max_row))
+    column = max(0, min(int(y), max_column))
+    Garden[row][column][2] += Amount
 def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Garden,rng=None):
     if rng is None:
         rng = numpy.random.default_rng()
@@ -526,14 +541,14 @@ def garden():
             with sqlite3.connect(DATABASE) as connection:
                 connection.row_factory = sqlite3.Row
                 shared_preferences = connection.execute(
-                    "SELECT rows, columns FROM gardens WHERE user_id = ?", (viewing,)
+                    "SELECT rows, columns, grid_state FROM gardens WHERE user_id = ?", (viewing,)
                 ).fetchone() if authorized else None
                 buddy = connection.execute("SELECT name FROM users WHERE id = ?", (viewing,)).fetchone() if authorized else None
             if not authorized:
                 flash("You can only view a confirmed buddy's garden.", "error")
                 return redirect(url_for("garden"))
             if shared_preferences:
-                grid = build_garden_grid(shared_preferences, viewing).tolist()
+                grid = json.loads(shared_preferences["grid_state"]) if shared_preferences["grid_state"] else build_garden_grid(shared_preferences, viewing).tolist()
                 plants = []
                 needs_setup = False
             else:
