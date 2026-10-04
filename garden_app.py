@@ -1,10 +1,10 @@
-import os
+﻿import os
 import hmac
 import json
 import secrets
 import sqlite3
 import numpy
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -14,8 +14,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 DATABASE = Path(__file__).with_name("garden.db")
 
-PositiveTiers = [0,3,7,14,30,60,120,300]
-negativeTiers = [1,5,20,70,350]
 
 @app.context_processor
 def inject_csrf_token():
@@ -67,9 +65,7 @@ def init_db():
             )"""
         )
         # Add grid dimensions for databases created by earlier versions.
-        garden_columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(gardens)")
-        }
+        garden_columns = {row[1] for row in connection.execute("PRAGMA table_info(gardens)")}
         if "rows" not in garden_columns:
             connection.execute("ALTER TABLE gardens ADD COLUMN rows INTEGER NOT NULL DEFAULT 20")
         if "columns" not in garden_columns:
@@ -86,24 +82,76 @@ def init_db():
         }.items():
             if column not in garden_columns:
                 connection.execute(f"ALTER TABLE gardens ADD COLUMN {column} {definition}")
+        if "habit_timer_started_at" not in garden_columns:
+            connection.execute("ALTER TABLE gardens ADD COLUMN habit_timer_started_at TEXT NOT NULL DEFAULT ''")
+        connection.execute(
+            "UPDATE gardens SET habit_timer_started_at = ? WHERE daily_goal != '' AND habit_timer_started_at = ''",
+            (datetime.now(timezone.utc).isoformat(),),
+        )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS habits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                timer_started_at TEXT NOT NULL,
+                last_checkin TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )"""
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS habits_user_id_idx ON habits (user_id, id)"
+        )
+        connection.execute(
+            """INSERT INTO habits (user_id, name, timer_started_at, last_checkin)
+               SELECT g.user_id, g.daily_goal, g.habit_timer_started_at, g.last_checkin
+               FROM gardens g
+               WHERE TRIM(g.daily_goal) != ''
+                 AND NOT EXISTS (
+                     SELECT 1 FROM habits h WHERE h.user_id = g.user_id
+                 )"""
+        )
+        connection.execute(
+            """UPDATE gardens
+               SET daily_goal = '', habit_timer_started_at = ''
+               WHERE daily_goal != ''
+                 AND EXISTS (
+                     SELECT 1 FROM habits h WHERE h.user_id = gardens.user_id
+                 )"""
+        )
 
 
 init_db()
+
+
+def ensure_default_garden(user_id):
+    """Create a fixed 20 by 20 garden when an account has none."""
+    grid = build_garden_grid({"rows": 20, "columns": 20}, user_id).tolist()
+    tile_row, tile_column = choose_random_tile_for_grid(numpy.asarray(grid), numpy.random)
+    with sqlite3.connect(DATABASE) as connection:
+        connection.execute(
+            """INSERT OR IGNORE INTO gardens
+               (user_id, sun, water, experience, rows, columns, grid_state,
+                goal_tile_row, goal_tile_column)
+               VALUES (?, 'sunny', 'high', 'beginner', 20, 20, ?, ?, ?)""",
+            (user_id, json.dumps(grid), tile_row, tile_column),
+        )
+
+
 def ChooseRandomTile(rng=None):
     rng = rng or numpy.random
     x = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
     y = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
     return (x, y)
 
+
 def choose_random_tile_for_grid(garden, rng):
-    """Choose a valid tile without crashing on small or edge-heavy grids."""
+    """Choose an interior tile so neighborhood operations stay inside the grid."""
+    draw = rng.randint if rng is numpy.random else rng.integers
     if garden is None or len(garden.shape) < 2:
         raise ValueError("Garden must be a 2D array-like grid.")
     rows, columns = garden.shape[:2]
     if rows <= 0 or columns <= 0:
         raise ValueError("Garden grid cannot be empty.")
-
-    draw = rng.randint if rng is numpy.random else rng.integers
     row_start = 0 if rows <= 2 else 1
     row_end = rows if rows <= 2 else rows - 1
     column_start = 0 if columns <= 2 else 1
@@ -114,12 +162,12 @@ def choose_random_tile_for_grid(garden, rng):
 
 
 def AddStuffToTileCircleR2(x, y, Garden):
-    #sorry to your eyes, Its not easy on my eyes
     AddStuffToTile(x, y, 2, Garden)
-    AddStuffToTile(x + 1, y,1, Garden)
-    AddStuffToTile(x - 1, y,1, Garden)
-    AddStuffToTile(x, y + 1,1, Garden)
-    AddStuffToTile(x, y - 1,1, Garden)
+    AddStuffToTile(x + 1, y, 1, Garden)
+    AddStuffToTile(x - 1, y, 1, Garden)
+    AddStuffToTile(x, y + 1, 1, Garden)
+    AddStuffToTile(x, y - 1, 1, Garden)
+
 
 def AddStuffToTile(x, y, Amount, Garden):
     max_row = Garden.shape[0] - 1
@@ -144,6 +192,7 @@ def RemoveStuffFromTile(x, y, Amount, Garden):
     else:
         Garden[row][column][1] += Amount
 
+
 def StrikeStuffFromTile(x, y, Amount, Garden):
     max_row = Garden.shape[0] - 1
     max_column = Garden.shape[1] - 1
@@ -166,19 +215,21 @@ def StrikeStuffFromTile(x, y, Amount, Garden):
         else:
             Garden[row][column][0] -= 5
 
+
 def DecayStuffFromTile(x, y, Amount, Garden):
     max_row = Garden.shape[0] - 1
     max_column = Garden.shape[1] - 1
     row = max(0, min(int(x), max_row))
     column = max(0, min(int(y), max_column))
     Garden[row][column][2] += Amount
-def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Garden,rng=None):
+
+
+def ChangeGardenOversVars(NegativeTotal1, NegativeTotal2, PositiveTotal, Decay, Garden, rng=None):
     if rng is None:
         rng = numpy.random.default_rng()
     while PositiveTotal > 0:
         x, y = choose_random_tile_for_grid(Garden, rng)
         if PositiveTotal > 6:
-            # add circle adder
             AddStuffToTileCircleR2(x, y, Garden)
             PositiveTotal -= 6
         else:
@@ -197,42 +248,27 @@ def ChangeGardenOversVars(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay,Gard
         DecayStuffFromTile(x, y, 1, Garden)
         Decay -= 1
 
-    return(NegativeTotal1,NegativeTotal2,PositiveTotal,Decay)
+    return (NegativeTotal1, NegativeTotal2, PositiveTotal, Decay)
+
 
 def GetTier(value, tiers):
     low = 0
-    high = len(tiers)  # exclusive upper bound
-
+    high = len(tiers)
     while low < high:
         mid = (low + high) // 2
-
         if tiers[mid] <= value:
             low = mid + 1
         else:
             high = mid
-
     return max(0, low - 1)
 
 
-TIERS1 = [0,2,5,15,30,70,200,400]
-NEGATIVE_TIERS = [1,5,20,70,350]
-
-
-def GetTileTier(Garden, x, y):
-    positive_tier = GetTier(Garden[x][y][0], TIERS1)
-    if positive_tier != 0:
-        return positive_tier, False
-
-    negative_tier = GetTier(Garden[x][y][1], NEGATIVE_TIERS)
-    return negative_tier, negative_tier != 0
-
-
-def RealizeDecay(Garden,Tiers):
+def RealizeDecay(Garden, Tiers):
     for x in range(Garden.shape[0]):
         for y in range(Garden.shape[1]):
             remaining = max(0, Garden[x][y][0] - Garden[x][y][2])
             if GetTier(Garden[x][y][0], Tiers) > GetTier(remaining, Tiers):
-               Garden[x][y][0] = remaining
+                Garden[x][y][0] = remaining
 
 
 def build_garden_grid(preferences, user_id):
@@ -242,6 +278,31 @@ def build_garden_grid(preferences, user_id):
     garden_grid = numpy.zeros((rows, columns, 3), dtype=int)
     garden_grid[:, :, 0] = 5
     return garden_grid
+
+
+TIERS1 = [0, 2, 5, 15, 30, 70, 200, 400]
+NEGATIVE_TIERS = [1, 5, 20, 70, 350]
+
+
+def GetTier(value, tiers):
+    low = 0
+    high = len(tiers)
+    while low < high:
+        mid = (low + high) // 2
+        if tiers[mid] <= value:
+            low = mid + 1
+        else:
+            high = mid
+    return max(0, low - 1)
+
+
+def GetTileTier(Garden, x, y):
+    positive_tier = GetTier(Garden[x][y][0], TIERS1)
+    if positive_tier != 0:
+        return positive_tier, False
+    negative_tier = GetTier(Garden[x][y][1], NEGATIVE_TIERS)
+    return negative_tier, negative_tier != 0
+
 
 @app.route("/")
 def home():
@@ -276,8 +337,9 @@ def signup():
 
     session.clear()
     session["user_id"] = cursor.lastrowid
-    flash("Your account was created! You can start planning your garden.", "success")
-    return redirect(url_for("questions"))
+    ensure_default_garden(cursor.lastrowid)
+    flash("Your account was created! Set your first habit in your garden.", "success")
+    return redirect(url_for("garden"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -300,6 +362,7 @@ def login():
 
     session.clear()
     session["user_id"] = user["id"]
+    ensure_default_garden(user["id"])
     flash("Welcome back!", "success")
     return redirect(url_for("garden"))
 
@@ -308,13 +371,7 @@ def login():
 def questions():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    with sqlite3.connect(DATABASE) as connection:
-        connection.row_factory = sqlite3.Row
-        preferences = connection.execute(
-            "SELECT rows, columns, description, daily_goal, daily_limit FROM gardens WHERE user_id = ?",
-            (session["user_id"],),
-        ).fetchone()
-    return render_template("questions.html", preferences=preferences)
+    return redirect(url_for("garden"))
 
 
 @app.route("/garden", methods=["GET", "POST"])
@@ -324,39 +381,28 @@ def garden():
         return redirect(url_for("login"))
 
     action = request.form.get("action")
-    if request.method == "POST" and action == "advance_timer":
-        today = date.today().isoformat()
-        with sqlite3.connect(DATABASE) as connection:
-            connection.row_factory = sqlite3.Row
-            preferences = connection.execute(
-                "SELECT daily_goal, last_checkin FROM gardens WHERE user_id = ?",
-                (user_id,),
-            ).fetchone()
-            if preferences is None or not preferences["daily_goal"] or not preferences["last_checkin"]:
-                flash("Set up a garden and daily goal before starting the timer.", "error")
-            elif preferences["last_checkin"] < today:
-                flash("Your check-in is already ready.", "success")
-            else:
-                previous_day = (date.today() - timedelta(days=1)).isoformat()
-                connection.execute(
-                    "UPDATE gardens SET last_checkin = ? WHERE user_id = ?",
-                    (previous_day, user_id),
-                )
-                flash("Timer moved forward. Your check-in is ready.", "success")
-        return redirect(url_for("garden"))
-
     if request.method == "POST" and action == "checkin":
-        completed = request.form.get("completed") == "yes"
-        today = date.today().isoformat()
+        completed_value = request.form.get("completed")
+        habit_id = request.form.get("habit_id", type=int)
+        if completed_value not in {"yes", "no"}:
+            flash("Choose whether you completed this habit.", "error")
+            return redirect(url_for("garden", habit=habit_id) if habit_id else url_for("garden"))
+        completed = completed_value == "yes"
+        now = datetime.now(timezone.utc)
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             preferences = connection.execute(
                 "SELECT * FROM gardens WHERE user_id = ?", (user_id,)
             ).fetchone()
-            if preferences is None or not preferences["last_checkin"] or preferences["last_checkin"] >= today:
+            habit = connection.execute(
+                "SELECT id, timer_started_at FROM habits WHERE id = ? AND user_id = ?",
+                (habit_id, user_id),
+            ).fetchone() if habit_id else None
+            if (preferences is None or habit is None or not habit["timer_started_at"]
+                    or now < datetime.fromisoformat(habit["timer_started_at"]) + timedelta(hours=24)):
                 flash("There is no daily check-in due yet.", "error")
-                return redirect(url_for("garden"))
-            grid = json.loads(preferences["grid_state"])
+                return redirect(url_for("garden", habit=habit_id) if habit_id else url_for("garden"))
+            grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
             row, column = preferences["goal_tile_row"], preferences["goal_tile_column"]
             if completed:
                 grid[row][column][0] = max(0, grid[row][column][0] + 1)
@@ -365,11 +411,46 @@ def garden():
                 grid[row][column][0] = max(0, grid[row][column][0] - 1)
             next_row, next_column = choose_random_tile_for_grid(numpy.asarray(grid), numpy.random)
             connection.execute(
-                "UPDATE gardens SET grid_state = ?, goal_tile_row = ?, goal_tile_column = ?, last_checkin = ? WHERE user_id = ?",
-                (json.dumps(grid), next_row, next_column, today, user_id),
+                "UPDATE gardens SET grid_state = ?, goal_tile_row = ?, goal_tile_column = ?, last_checkin = ?, habit_timer_started_at = ? WHERE user_id = ?",
+                (json.dumps(grid), next_row, next_column, date.today().isoformat(), now.isoformat(), user_id),
             )
-        flash("Nice work! Your garden grew by 1 point." if completed else "Your garden lost 1 point. You can try again tomorrow.", "success" if completed else "error")
+            connection.execute(
+                "UPDATE habits SET timer_started_at = ?, last_checkin = ? WHERE id = ? AND user_id = ?",
+                (now.isoformat(), date.today().isoformat(), habit_id, user_id),
+            )
+        flash("Nice work! Your garden grew by 1 point." if completed else "Your garden lost 1 point. A new 24-hour cycle has started.", "success" if completed else "error")
+        return redirect(url_for("garden", habit=habit_id))
+
+    if request.method == "POST" and action == "save_goal":
+        daily_goal = request.form.get("daily_goal", "").strip()
+        if not daily_goal:
+            flash("Enter a habit or goal to track.", "error")
+            return redirect(url_for("garden"))
+        with sqlite3.connect(DATABASE) as connection:
+            cursor = connection.execute(
+                "INSERT INTO habits (user_id, name, timer_started_at) VALUES (?, ?, ?)",
+                (user_id, daily_goal[:200], datetime.now(timezone.utc).isoformat()),
+            )
+            habit_id = cursor.lastrowid
+        flash("Habit added. Your 24-hour cycle starts now.", "success")
+        return redirect(url_for("garden", habit=habit_id))
+
+    if request.method == "POST" and action == "delete_goal":
+        habit_id = request.form.get("habit_id", type=int)
+        if habit_id is None:
+            flash("Select a habit to delete.", "error")
+            return redirect(url_for("garden"))
+        with sqlite3.connect(DATABASE) as connection:
+            cursor = connection.execute(
+                "DELETE FROM habits WHERE id = ? AND user_id = ?",
+                (habit_id, user_id),
+            )
+        if cursor.rowcount != 1:
+            flash("That habit could not be found.", "error")
+        else:
+            flash("Habit deleted.", "success")
         return redirect(url_for("garden"))
+
     if request.method == "POST" and action in {"offer", "request", "accept", "confirm"}:
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
@@ -431,24 +512,39 @@ def garden():
             ).fetchone()
 
         if preferences is None:
-            plants = []
-            needs_setup = True
-            # Keep the garden visible before a user saves their own dimensions.
-            # The setup link still lets them choose the real grid and describe it.
-            grid = build_garden_grid({"rows": 20, "columns": 20}, user_id).tolist()
-            garden_description = ""
+            ensure_default_garden(user_id)
+            return redirect(url_for("garden"))
         else:
             plants = []
             needs_setup = False
             grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
-            garden_description = preferences["description"]
-        checkin_due = bool(preferences and preferences["daily_goal"] and preferences["last_checkin"] and preferences["last_checkin"] < date.today().isoformat())
-        timer_deadline = None
-        timer_started_at = None
-        if preferences and preferences["daily_goal"] and preferences["last_checkin"] and not checkin_due:
-            last_checkin = date.fromisoformat(preferences["last_checkin"])
-            timer_started_at = datetime.combine(last_checkin, time.min).timestamp() * 1000
-            timer_deadline = datetime.combine(last_checkin + timedelta(days=1), time.min).timestamp() * 1000
+        with sqlite3.connect(DATABASE) as connection:
+            connection.row_factory = sqlite3.Row
+            habits = [
+                dict(habit)
+                for habit in connection.execute(
+                    "SELECT id, name, timer_started_at, last_checkin FROM habits WHERE user_id = ? ORDER BY id DESC",
+                    (user_id,),
+                ).fetchall()
+            ]
+        now = datetime.now(timezone.utc)
+        for habit in habits:
+            started_at = datetime.fromisoformat(habit["timer_started_at"])
+            next_checkin_at = started_at + timedelta(hours=24)
+            habit["next_checkin_at"] = next_checkin_at.isoformat()
+            habit["checkin_due"] = now >= next_checkin_at
+        requested_habit_id = request.args.get("habit", type=int)
+        selected_habit = next(
+            (habit for habit in habits if habit["id"] == requested_habit_id),
+            habits[0] if habits else None,
+        )
+        timer_started_at = (
+            datetime.fromisoformat(selected_habit["timer_started_at"])
+            if selected_habit else None
+        )
+        next_checkin_at = timer_started_at + timedelta(hours=24) if timer_started_at else None
+        checkin_due = bool(selected_habit and selected_habit["checkin_due"])
+        daily_goal = selected_habit["name"] if selected_habit else ""
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             offers = connection.execute(
@@ -474,11 +570,7 @@ def garden():
             with sqlite3.connect(DATABASE) as connection:
                 connection.row_factory = sqlite3.Row
                 shared_preferences = connection.execute(
-<<<<<<< HEAD
                     "SELECT rows, columns, grid_state FROM gardens WHERE user_id = ?", (viewing,)
-=======
-                    "SELECT rows, columns, description FROM gardens WHERE user_id = ?", (viewing,)
->>>>>>> 0ba851a93ef3eeb73b84ba4406da9904204f3314
                 ).fetchone() if authorized else None
                 buddy = connection.execute("SELECT name FROM users WHERE id = ?", (viewing,)).fetchone() if authorized else None
             if not authorized:
@@ -488,74 +580,32 @@ def garden():
                 grid = json.loads(shared_preferences["grid_state"]) if shared_preferences["grid_state"] else build_garden_grid(shared_preferences, viewing).tolist()
                 plants = []
                 needs_setup = False
-                garden_description = shared_preferences["description"]
             else:
                 grid = None
                 plants = []
                 needs_setup = True
-                garden_description = ""
             viewing_name = buddy["name"]
         else:
             viewing_name = None
+
         tile_tiers = [
             [GetTileTier(grid, row_index, column_index) for column_index in range(len(row))]
             for row_index, row in enumerate(grid)
         ] if grid else []
+        timer_deadline = selected_habit["next_checkin_at"] if selected_habit and not checkin_due else None
+        timer_started_at = selected_habit["timer_started_at"] if selected_habit else None
+
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
                                tile_tiers=tile_tiers,
                                offers=offers, buddies=buddies, viewing_name=viewing_name,
-                               garden_description=garden_description, checkin_due=checkin_due,
-                               timer_deadline=timer_deadline, timer_started_at=timer_started_at,
-                               daily_goal=preferences["daily_goal"] if preferences else "",
+                               habits=habits, selected_habit=selected_habit,
+                               checkin_due=checkin_due,
+                               timer_deadline=timer_deadline,
+                               timer_started_at=timer_started_at,
+                               daily_goal=daily_goal,
                                daily_limit=preferences["daily_limit"] if preferences else 0,
                                preferences=preferences)
 
-    try:
-        rows = int(request.form.get("rows", "20"))
-        columns = int(request.form.get("columns", "20"))
-    except ValueError:
-        rows = columns = 0
-
-    if not 3 <= rows <= 30 or not 3 <= columns <= 30:
-        flash("Choose grid dimensions from 3 to 30.", "error")
-        return redirect(url_for("questions"))
-
-    description = request.form.get("description", "").strip()
-    if not description:
-        flash("Add a short description of your garden.", "error")
-        return redirect(url_for("questions"))
-
-    daily_goal = request.form.get("daily_goal", "").strip()
-    try:
-        daily_limit = int(request.form.get("daily_limit", "0"))
-    except ValueError:
-        daily_limit = -1
-    if not daily_goal or not 0 <= daily_limit <= 100:
-        flash("Add a daily goal and choose a limit from 0 to 100.", "error")
-        return redirect(url_for("questions"))
-
-    grid = build_garden_grid({"rows": rows, "columns": columns}, user_id).tolist()
-    tile_row, tile_column = choose_random_tile_for_grid(numpy.asarray(grid), numpy.random)
-    today = date.today().isoformat()
-
-    with sqlite3.connect(DATABASE) as connection:
-        connection.execute(
-            """INSERT INTO gardens (user_id, sun, water, experience, rows, columns, description,
-                                   daily_goal, daily_limit, grid_state, goal_tile_row, goal_tile_column, last_checkin)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(user_id) DO UPDATE SET
-                   rows = excluded.rows,
-                   columns = excluded.columns,
-                   description = excluded.description,
-                   daily_goal = excluded.daily_goal,
-                   daily_limit = excluded.daily_limit,
-                   grid_state = CASE WHEN gardens.grid_state = '' OR gardens.rows != excluded.rows OR gardens.columns != excluded.columns THEN excluded.grid_state ELSE gardens.grid_state END,
-                   goal_tile_row = CASE WHEN gardens.grid_state = '' OR gardens.rows != excluded.rows OR gardens.columns != excluded.columns THEN excluded.goal_tile_row ELSE gardens.goal_tile_row END,
-                   goal_tile_column = CASE WHEN gardens.grid_state = '' OR gardens.rows != excluded.rows OR gardens.columns != excluded.columns THEN excluded.goal_tile_column ELSE gardens.goal_tile_column END,
-                   last_checkin = CASE WHEN gardens.last_checkin = '' THEN excluded.last_checkin ELSE gardens.last_checkin END""",
-            (user_id, "sunny", "high", "beginner", rows, columns, description[:500], daily_goal[:200], daily_limit,
-             json.dumps(grid), tile_row, tile_column, today),
-        )
     return redirect(url_for("garden"))
 
 
