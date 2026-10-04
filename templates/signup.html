@@ -18,6 +18,7 @@
         {% endwith %}
 
         <form action="{{ url_for('signup') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="name">Name</label>
             <input id="name" name="name" type="text" autocomplete="name" required>
 

@@ -1,4 +1,6 @@
 import os
+import hmac
+import secrets
 import sqlite3
 import numpy
 from pathlib import Path
@@ -7,8 +9,23 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "local-development-only-change-me")
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 DATABASE = Path(__file__).with_name("garden.db")
+
+
+@app.context_processor
+def inject_csrf_token():
+    token = session.setdefault("csrf_token", secrets.token_urlsafe(32))
+    return {"csrf_token": token}
+
+
+@app.before_request
+def validate_csrf_token():
+    if request.method == "POST":
+        expected = session.get("csrf_token", "")
+        provided = request.form.get("csrf_token", "")
+        if not expected or not hmac.compare_digest(expected, provided):
+            return "Invalid or missing CSRF token", 400
 
 
 def init_db():
@@ -212,6 +229,7 @@ def signup():
         flash("An account with that email already exists.", "error")
         return render_template("signup.html"), 409
 
+    session.clear()
     session["user_id"] = cursor.lastrowid
     flash("Your account was created! You can start planning your garden.", "success")
     return redirect(url_for("questions"))
@@ -290,7 +308,12 @@ def garden():
                     ).fetchone()
                     if offer is None or offer["recipient_id"] is not None or offer["owner_id"] == user_id:
                         raise ValueError("That buddy offer is no longer available.")
-                    connection.execute("UPDATE buddy_offers SET recipient_id = ? WHERE id = ?", (user_id, offer_id))
+                    cursor = connection.execute(
+                        "UPDATE buddy_offers SET recipient_id = ? WHERE id = ? AND recipient_id IS NULL",
+                        (user_id, offer_id),
+                    )
+                    if cursor.rowcount != 1:
+                        raise ValueError("That buddy offer is no longer available.")
                     flash("Request sent. The offer owner can confirm after you accept.", "success")
                 elif action in {"accept", "confirm"}:
                     offer_id = int(request.form.get("offer_id", ""))
@@ -326,7 +349,7 @@ def garden():
             needs_setup = True
             grid = None
         else:
-            plants = ["Basil", "Lettuce", "Marigolds"]
+            plants = recommend_plants(preferences["sun"], preferences["water"], preferences["experience"])
             needs_setup = False
             grid = build_garden_grid(preferences, user_id).tolist()
         with sqlite3.connect(DATABASE) as connection:
@@ -384,6 +407,13 @@ def garden():
         flash("Choose grid dimensions from 3 to 30.", "error")
         return redirect(url_for("questions"))
 
+    sun = request.form.get("sun", "sunny")
+    water = request.form.get("water", "high")
+    experience = request.form.get("experience", "beginner")
+    if sun not in {"sunny", "shady"} or water not in {"low", "high"} or experience not in {"beginner", "experienced"}:
+        flash("Choose valid garden preferences.", "error")
+        return redirect(url_for("questions"))
+
     with sqlite3.connect(DATABASE) as connection:
         connection.execute(
             """INSERT INTO gardens (user_id, sun, water, experience, rows, columns)
@@ -394,10 +424,10 @@ def garden():
                    experience = excluded.experience,
                    rows = excluded.rows,
                    columns = excluded.columns""",
-            (user_id, "sunny", "high", "beginner", rows, columns),
+            (user_id, sun, water, experience, rows, columns),
         )
     return redirect(url_for("garden"))
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")

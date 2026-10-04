@@ -26,7 +26,7 @@
         {% endif %}
         {% if grid %}
         <section class="garden-map" aria-label="Your simulated garden grid">
-            <div class="garden-grid" role="img" aria-label="{{ grid|length }} by {{ grid[0]|length }} garden grid. Darker green tiles contain more growth." style="grid-template-columns: repeat({{ grid[0]|length }}, minmax(0, 1fr)); aspect-ratio: {{ grid[0]|length }} / {{ grid|length }};">
+            <div class="garden-grid" role="img" aria-label="{{ grid|length }} by {{ grid[0]|length }} garden grid. Darker green tiles contain more growth." style="grid-template-columns: repeat({{ grid[0]|length }}, minmax(0, 1fr)); grid-template-rows: repeat({{ grid|length }}, minmax(0, 1fr)); aspect-ratio: {{ grid[0]|length }} / {{ grid|length }};">
                 {% for row in grid %}
                     {% for tile in row %}
                         {% set growth = tile[0] %}
@@ -51,6 +51,7 @@
             <h2 id="buddy-heading">Garden buddies</h2>
             <p>Post an offer or request an open offer. Both gardeners must confirm before sharing grids.</p>
             <form method="post" class="buddy-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="action" value="offer">
                 <label for="buddy-description">What kind of garden buddy are you looking for?</label>
                 <input id="buddy-description" name="description" type="text" maxlength="300" required placeholder="Weekly check-ins, plant tips…">
@@ -65,16 +66,16 @@
                         {% if offer.recipient_id %}
                             <p>Request from {{ offer.recipient_name }} — {% if offer.recipient_accepted and offer.owner_confirmed %}Connected{% elif offer.recipient_accepted %}Waiting for your confirmation{% else %}Waiting for them to accept{% endif %}</p>
                             {% if offer.recipient_accepted and not offer.owner_confirmed %}
-                            <form method="post"><input type="hidden" name="action" value="confirm"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Confirm buddy</button></form>
+                            <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="confirm"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Confirm buddy</button></form>
                             {% endif %}
                         {% else %}<p>Waiting for a gardener to request.</p>{% endif %}
                     {% elif offer.recipient_id == session.get('user_id') %}
                         {% if not offer.recipient_accepted %}
-                        <form method="post"><input type="hidden" name="action" value="accept"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Accept request</button></form>
+                        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="accept"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Accept request</button></form>
                         {% elif offer.owner_confirmed %}<p>Connected — you can view {{ offer.owner_name }}'s grid below.</p>
                         {% else %}<p>You accepted. Waiting for the owner to confirm.</p>{% endif %}
                     {% elif not offer.recipient_id %}
-                        <form method="post"><input type="hidden" name="action" value="request"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Request to connect</button></form>
+                        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="request"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Request to connect</button></form>
                     {% endif %}
                 </li>
                 {% endfor %}

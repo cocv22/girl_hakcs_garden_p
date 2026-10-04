@@ -79,10 +79,12 @@ button,
 
 .garden-tile {
     min-width: 0;
+    min-height: 0;
     border-radius: 2px;
     background: #f4f1df;
 }
 
+.growth-0 { background: #e6eddc; }
 .growth-1 { background: #d7e7c5; }
 .growth-2 { background: #b6d49b; }
 .growth-3 { background: #8fbd78; }
