@@ -25,7 +25,6 @@
         {% else %}
             <p>Your garden grid is ready. Every tile starts with 5 growth points.</p>
         {% endif %}
-        {% if garden_description %}<p class="garden-description">{{ garden_description }}</p>{% endif %}
         {% if daily_goal and not viewing_name %}
             <p><strong>Today's goal:</strong> {{ daily_goal }} — limit: {{ daily_limit }}</p>
             <p>Keep going at your own pace. A completed check-in adds 1 point to one randomly selected tile.</p>

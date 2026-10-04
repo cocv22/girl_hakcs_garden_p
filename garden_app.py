@@ -281,7 +281,7 @@ def questions():
     with sqlite3.connect(DATABASE) as connection:
         connection.row_factory = sqlite3.Row
         preferences = connection.execute(
-            "SELECT rows, columns, description, daily_goal, daily_limit FROM gardens WHERE user_id = ?",
+            "SELECT rows, columns, daily_goal, daily_limit FROM gardens WHERE user_id = ?",
             (session["user_id"],),
         ).fetchone()
     return render_template("questions.html", preferences=preferences)
@@ -383,14 +383,12 @@ def garden():
             plants = []
             needs_setup = True
             # Keep the garden visible before a user saves their own dimensions.
-            # The setup link still lets them choose the real grid and describe it.
+            # The setup link still lets them choose the real grid.
             grid = build_garden_grid({"rows": 20, "columns": 20}, user_id).tolist()
-            garden_description = ""
         else:
             plants = []
             needs_setup = False
             grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
-            garden_description = preferences["description"]
         checkin_due = bool(preferences and preferences["daily_goal"] and preferences["last_checkin"] and preferences["last_checkin"] < date.today().isoformat())
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
@@ -417,7 +415,7 @@ def garden():
             with sqlite3.connect(DATABASE) as connection:
                 connection.row_factory = sqlite3.Row
                 shared_preferences = connection.execute(
-                    "SELECT rows, columns, description FROM gardens WHERE user_id = ?", (viewing,)
+                    "SELECT rows, columns FROM gardens WHERE user_id = ?", (viewing,)
                 ).fetchone() if authorized else None
                 buddy = connection.execute("SELECT name FROM users WHERE id = ?", (viewing,)).fetchone() if authorized else None
             if not authorized:
@@ -427,18 +425,16 @@ def garden():
                 grid = build_garden_grid(shared_preferences, viewing).tolist()
                 plants = []
                 needs_setup = False
-                garden_description = shared_preferences["description"]
             else:
                 grid = None
                 plants = []
                 needs_setup = True
-                garden_description = ""
             viewing_name = buddy["name"]
         else:
             viewing_name = None
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
                                offers=offers, buddies=buddies, viewing_name=viewing_name,
-                               garden_description=garden_description, checkin_due=checkin_due,
+                               checkin_due=checkin_due,
                                daily_goal=preferences["daily_goal"] if preferences else "",
                                daily_limit=preferences["daily_limit"] if preferences else 0,
                                preferences=preferences)
@@ -451,11 +447,6 @@ def garden():
 
     if not 3 <= rows <= 30 or not 3 <= columns <= 30:
         flash("Choose grid dimensions from 3 to 30.", "error")
-        return redirect(url_for("questions"))
-
-    description = request.form.get("description", "").strip()
-    if not description:
-        flash("Add a short description of your garden.", "error")
         return redirect(url_for("questions"))
 
     daily_goal = request.form.get("daily_goal", "").strip()
@@ -473,20 +464,19 @@ def garden():
 
     with sqlite3.connect(DATABASE) as connection:
         connection.execute(
-            """INSERT INTO gardens (user_id, sun, water, experience, rows, columns, description,
+            """INSERT INTO gardens (user_id, sun, water, experience, rows, columns,
                                    daily_goal, daily_limit, grid_state, goal_tile_row, goal_tile_column, last_checkin)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    rows = excluded.rows,
                    columns = excluded.columns,
-                   description = excluded.description,
                    daily_goal = excluded.daily_goal,
                    daily_limit = excluded.daily_limit,
                    grid_state = CASE WHEN gardens.grid_state = '' OR gardens.rows != excluded.rows OR gardens.columns != excluded.columns THEN excluded.grid_state ELSE gardens.grid_state END,
                    goal_tile_row = CASE WHEN gardens.grid_state = '' OR gardens.rows != excluded.rows OR gardens.columns != excluded.columns THEN excluded.goal_tile_row ELSE gardens.goal_tile_row END,
                    goal_tile_column = CASE WHEN gardens.grid_state = '' OR gardens.rows != excluded.rows OR gardens.columns != excluded.columns THEN excluded.goal_tile_column ELSE gardens.goal_tile_column END,
                    last_checkin = CASE WHEN gardens.last_checkin = '' THEN excluded.last_checkin ELSE gardens.last_checkin END""",
-            (user_id, "sunny", "high", "beginner", rows, columns, description[:500], daily_goal[:200], daily_limit,
+            (user_id, "sunny", "high", "beginner", rows, columns, daily_goal[:200], daily_limit,
              json.dumps(grid), tile_row, tile_column, today),
         )
     return redirect(url_for("garden"))

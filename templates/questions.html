@@ -35,9 +35,6 @@
             <label for="columns">Columns</label>
             <input id="columns" type="number" name="columns" min="3" max="30" value="{{ preferences['columns'] if preferences else 20 }}" required>
 
-            <label for="description">Short description of your garden</label>
-            <textarea id="description" name="description" maxlength="500" rows="3" required>{{ preferences['description'] if preferences else '' }}</textarea>
-
             <h2>Your daily goal</h2>
             <p>Choose one small goal to work toward. Your garden will grow when you complete it.</p>
             <label for="daily_goal">What will you dedicate yourself to?</label>
