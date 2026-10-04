@@ -13,7 +13,7 @@
 
     <main class="container">
 
-        <h1>Tell Us About Your Garden</h1>
+        <h1>Set Up Your Garden</h1>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
@@ -24,49 +24,13 @@
         <form action="{{ url_for('garden') }}" method="POST">
 
             <h2>What size should your garden grid be?</h2>
-            <p>Choose the number of rows and columns (3–30 each).</p>
+            <p>Choose the number of rows and columns (3 to 30 each). Every tile starts with 5 growth points.</p>
 
             <label for="rows">Rows</label>
             <input id="rows" type="number" name="rows" min="3" max="30" value="{{ preferences['rows'] if preferences else 20 }}" required>
 
             <label for="columns">Columns</label>
             <input id="columns" type="number" name="columns" min="3" max="30" value="{{ preferences['columns'] if preferences else 20 }}" required>
-
-            <h2>How much sunlight does your garden get?</h2>
-
-            <label>
-                <input type="radio" name="sun" value="sunny" required {% if preferences and preferences['sun'] == 'sunny' %}checked{% endif %}>
-                Lots of sunlight
-            </label>
-
-            <label>
-                <input type="radio" name="sun" value="shady" {% if preferences and preferences['sun'] == 'shady' %}checked{% endif %}>
-                Mostly shade
-            </label>
-
-            <h2>How often can you water your plants?</h2>
-
-            <label>
-                <input type="radio" name="water" value="low" required {% if preferences and preferences['water'] == 'low' %}checked{% endif %}>
-                Not very often
-            </label>
-
-            <label>
-                <input type="radio" name="water" value="high" {% if preferences and preferences['water'] == 'high' %}checked{% endif %}>
-                Frequently
-            </label>
-
-            <h2>How experienced are you with gardening?</h2>
-
-            <label>
-                <input type="radio" name="experience" value="beginner" required {% if preferences and preferences['experience'] == 'beginner' %}checked{% endif %}>
-                Beginner
-            </label>
-
-            <label>
-                <input type="radio" name="experience" value="experienced" {% if preferences and preferences['experience'] == 'experienced' %}checked{% endif %}>
-                Experienced
-            </label>
 
             <br>
 

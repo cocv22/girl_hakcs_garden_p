@@ -162,26 +162,11 @@ def RealizeDecay(Garden,Tiers):
 
 
 def build_garden_grid(preferences, user_id):
-    """Turn saved preferences into simulation inputs and a sized garden grid."""
+    """Create a sized garden grid with the simulation's base growth per tile."""
     rows = preferences["rows"]
     columns = preferences["columns"]
     garden_grid = numpy.zeros((rows, columns, 3), dtype=int)
-    sunny = preferences["sun"] == "sunny"
-    high_water = preferences["water"] == "high"
-    experienced = preferences["experience"] == "experienced"
-
-    # Sunlight feeds growth, watering limits decay, and experience sets how much
-    # disturbance the garden simulation receives.
-    positive_total = 360 if sunny else 220
-    negative_total1 = 35 if experienced else 15
-    negative_total2 = 100 if experienced else 50
-    decay = 25 if high_water else 70
-    rng = numpy.random.default_rng(int(user_id))
-
-    ChangeGardenOversVars(
-        negative_total1, negative_total2, positive_total, decay, garden_grid, rng
-    )
-    RealizeDecay(garden_grid, [0, 10, 20, 35, 50, 75, 100])
+    garden_grid[:, :, 0] = 5
     return garden_grid
 
 @app.route("/")
@@ -285,26 +270,19 @@ def garden():
             needs_setup = True
             grid = None
         else:
-            plants = recommend_plants(
-                preferences["sun"], preferences["water"], preferences["experience"]
-            )
+            plants = ["Basil", "Lettuce", "Marigolds"]
             needs_setup = False
             grid = build_garden_grid(preferences, user_id).tolist()
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid)
 
-    sun = request.form.get("sun")
-    water = request.form.get("water")
-    experience = request.form.get("experience")
     try:
         rows = int(request.form.get("rows", "20"))
         columns = int(request.form.get("columns", "20"))
     except ValueError:
         rows = columns = 0
 
-    if (sun not in {"sunny", "shady"} or water not in {"low", "high"}
-            or experience not in {"beginner", "experienced"}
-            or not 3 <= rows <= 30 or not 3 <= columns <= 30):
-        flash("Please answer each question and choose grid dimensions from 3 to 30.", "error")
+    if not 3 <= rows <= 30 or not 3 <= columns <= 30:
+        flash("Choose grid dimensions from 3 to 30.", "error")
         return redirect(url_for("questions"))
 
     with sqlite3.connect(DATABASE) as connection:
@@ -317,7 +295,7 @@ def garden():
                    experience = excluded.experience,
                    rows = excluded.rows,
                    columns = excluded.columns""",
-            (user_id, sun, water, experience, rows, columns),
+            (user_id, "sunny", "high", "beginner", rows, columns),
         )
     return redirect(url_for("garden"))
 
