@@ -40,7 +40,7 @@
             <h2>Your daily goal</h2>
             <p>Choose one small goal to work toward. Your garden will grow when you complete it.</p>
             <label for="daily_goal">What will you dedicate yourself to?</label>
-            <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ preferences['daily_goal'] if preferences else '' }}" placeholder="Eat no more than this many bags of Doritos">
+            <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ preferences['daily_goal'] if preferences else '' }}" placeholder="I will start eating healthier">
             <label for="daily_limit">Daily limit (number)</label>
             <input id="daily_limit" type="number" name="daily_limit" min="0" max="100" value="{{ preferences['daily_limit'] if preferences else 0 }}" required>
             <p>Small steps count. Come back tomorrow and check in honestly; every completed day adds 1 point to a garden tile.</p>
