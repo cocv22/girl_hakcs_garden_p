@@ -307,7 +307,11 @@ def garden():
                 return redirect(url_for("garden"))
             grid = json.loads(preferences["grid_state"])
             row, column = preferences["goal_tile_row"], preferences["goal_tile_column"]
-            grid[row][column][0] = max(0, grid[row][column][0] + (1 if completed else -1))
+            if completed:
+                grid[row][column][0] = max(0, grid[row][column][0] + 1)
+            else:
+                row, column = choose_random_tile_for_grid(numpy.asarray(grid), numpy.random)
+                grid[row][column][0] = max(0, grid[row][column][0] - 1)
             next_row, next_column = choose_random_tile_for_grid(numpy.asarray(grid), numpy.random)
             connection.execute(
                 "UPDATE gardens SET grid_state = ?, goal_tile_row = ?, goal_tile_column = ?, last_checkin = ? WHERE user_id = ?",
