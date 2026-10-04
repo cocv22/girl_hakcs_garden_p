@@ -3,125 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#193c32">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/pixilart-drawing.png') }}">
-    <title>Your Garden</title>
+    <title>{% if viewing_name %}{{ viewing_name }}'s Garden{% else %}Your Garden | Little Grove{% endif %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
-<body>
-    <main class="container">
-        <h1>{% if viewing_name %}{{ viewing_name }}'s Garden{% else %}Your Garden{% endif %}</h1>
+<body class="garden-dashboard">
+    <main class="app-shell">
+        <header class="dashboard-header">
+            <a class="dashboard-brand" href="{{ url_for('garden') }}"><span aria-hidden="true">✿</span> Little Grove</a>
+            <p class="dashboard-welcome">{% if viewing_name %}A peek into {{ viewing_name }}'s garden{% else %}A little room for growth{% endif %}</p>
+            <h1>{% if viewing_name %}{{ viewing_name }}'s garden{% else %}Your garden, your pace.{% endif %}</h1>
+            {% if not viewing_name %}
+            <nav class="dashboard-nav" aria-label="Garden dashboard">
+                <a href="#timer">Timer</a>
+                <a href="#garden">Garden</a>
+                <a href="#goals">Goals</a>
+                <a href="#buddy">Buddy system</a>
+            </nav>
+            {% endif %}
+        </header>
+
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
-                <p class="message {{ category }}" role="status">{{ message }}</p>
+                <p class="message {{ category }} dashboard-flash" role="status">{{ message }}</p>
             {% endfor %}
         {% endwith %}
 
         {% if viewing_name %}
-            <p>Viewing {{ viewing_name }}'s garden grid.</p>
-        {% endif %}
-        {% if daily_goal and not viewing_name %}
-            <p><strong>Habit:</strong> {{ daily_goal }}</p>
-            <p>Complete a check-in once every 24 hours. A completed habit adds 1 point to a garden tile.</p>
-            {% if next_checkin_at and not checkin_due %}
-            <p>Next check-in opens in <strong id="habit-countdown" data-deadline="{{ next_checkin_at }}">calculating…</strong>.</p>
+        <p class="viewing-note">You’re viewing {{ viewing_name }}'s garden grid.</p>
+        {% else %}
+        <section class="dashboard-card timer-card" id="timer" aria-labelledby="timer-heading">
+            <div class="card-heading">
+                <div>
+                    <p class="section-kicker">Your daily rhythm</p>
+                    <h2 id="timer-heading">Timer</h2>
+                </div>
+                {% if daily_goal %}
+                <span class="timer-status{% if checkin_due %} is-ready{% endif %}">{% if checkin_due %}Ready to check in{% else %}Growing{% endif %}</span>
+                {% else %}
+                <span class="timer-status is-idle">Not started</span>
+                {% endif %}
+            </div>
+            {% if daily_goal %}
+            <p class="timer-habit"><span>Current habit</span><strong>{{ daily_goal }}</strong></p>
+            {% if checkin_due %}
+            <p class="timer-value" aria-live="polite">00:00:00</p>
+            <p class="timer-caption">Your next check-in is ready below.</p>
+            {% elif next_checkin_at %}
+            <p class="timer-value" aria-live="off" id="habit-countdown" data-deadline="{{ next_checkin_at }}" data-started="{{ habit_timer_started_at }}">calculating…</p>
+            <div class="timer-track" aria-hidden="true"><span id="timer-progress"></span></div>
+            <p class="timer-caption">until your next check-in</p>
             {% endif %}
+            {% else %}
+            <p class="timer-empty">Choose a habit below to start your first 24-hour cycle.</p>
+            {% endif %}
+        </section>
         {% endif %}
+
+        {% if grid %}
+        <section class="dashboard-card garden-card" id="garden" aria-labelledby="garden-heading">
+            <div class="card-heading garden-heading">
+                <div>
+                    <p class="section-kicker">Small steps take root</p>
+                    <h2 id="garden-heading">Garden</h2>
+                </div>
+                {% if not viewing_name and daily_goal %}<span class="garden-tag">Your progress, in bloom</span>{% endif %}
+            </div>
+            <section class="garden-map" aria-label="Your simulated garden grid">
+                <div class="garden-grid" role="img" aria-label="{{ grid|length }} by {{ grid[0]|length }} garden grid. Darker green tiles contain more growth." style="grid-template-columns: repeat({{ grid[0]|length }}, minmax(0, 1fr)); grid-template-rows: repeat({{ grid|length }}, minmax(0, 1fr)); aspect-ratio: {{ grid[0]|length }} / {{ grid|length }};">
+                    {% for row in grid %}
+                        {% set row_index = loop.index0 %}
+                        {% for tile in row %}
+                            {% set growth = tile[0] %}
+                            <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"></span>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+                <p class="garden-legend"><span class="legend-low"></span> Less growth <span class="legend-high"></span> More growth</p>
+            </section>
+            <div class="garden">
+                {% for plant in plants %}
+                    <div class="plant">&#127793; {{ plant }}</div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
         {% if not viewing_name %}
-        <section class="message" aria-labelledby="habit-heading">
-            <h2 id="habit-heading">{% if daily_goal %}Update your habit or goal{% else %}Choose a habit or goal{% endif %}</h2>
-            <form method="post">
+        <section class="dashboard-card goals-card" id="goals" aria-labelledby="habit-heading">
+            <div class="card-heading">
+                <div>
+                    <p class="section-kicker">One small promise to yourself</p>
+                    <h2 id="habit-heading">Habit console</h2>
+                </div>
+                <span class="goal-count">{% if daily_goal %}01 active habit{% else %}Ready when you are{% endif %}</span>
+            </div>
+            <p class="card-description">Choose something you can come back to each day. A completed check-in adds a little growth to your garden.</p>
+            <form method="post" class="goal-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="action" value="save_goal">
                 <label for="daily_goal">What will you practice?</label>
-                <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ daily_goal }}" placeholder="Take a 10-minute walk">
-                <button type="submit">{% if daily_goal %}Save new habit{% else %}Start tracking{% endif %}</button>
+                <div class="goal-input-row">
+                    <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ daily_goal }}" placeholder="Take a 10-minute walk">
+                    <button type="submit">{% if daily_goal %}Save habit{% else %}Start tracking{% endif %}</button>
+                </div>
             </form>
-            {% if daily_goal %}<p>Saving a new habit starts a fresh 24-hour cycle.</p>{% endif %}
-        </section>
-        {% endif %}
-        {% if checkin_due and not viewing_name %}
-        <section class="message success" aria-labelledby="checkin-heading">
-            <h2 id="checkin-heading">Your 24-hour check-in is ready</h2>
-            <p>Did you complete your habit: {{ daily_goal }}?</p>
-            <form method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="action" value="checkin">
-                <button type="submit" name="completed" value="yes">Yes, I did</button>
-                <button type="submit" name="completed" value="no" class="secondary">Not this time</button>
-            </form>
-        </section>
-        {% endif %}
-        {% if grid %}
-        <section class="garden-map" aria-label="Your simulated garden grid">
-            <div class="garden-grid" role="img" aria-label="{{ grid|length }} by {{ grid[0]|length }} garden grid. Darker green tiles contain more growth." style="grid-template-columns: repeat({{ grid[0]|length }}, minmax(0, 1fr)); grid-template-rows: repeat({{ grid|length }}, minmax(0, 1fr)); aspect-ratio: {{ grid[0]|length }} / {{ grid|length }};">
-                {% for row in grid %}
-                    {% set row_index = loop.index0 %}
-                    {% for tile in row %}
-                        {% set growth = tile[0] %}
-                        <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"></span>
-                    {% endfor %}
-                {% endfor %}
+            {% if daily_goal %}<p class="goal-note">Saving a new habit starts a fresh 24-hour cycle.</p>{% endif %}
+            {% if checkin_due %}
+            <div class="checkin-panel" aria-labelledby="checkin-heading">
+                <div>
+                    <p class="section-kicker">Your daily moment</p>
+                    <h3 id="checkin-heading">Your check-in is ready</h3>
+                    <p>Did you complete “{{ daily_goal }}”?</p>
+                </div>
+                <form method="post" class="checkin-actions">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="action" value="checkin">
+                    <button type="submit" name="completed" value="yes">Yes, I did</button>
+                    <button type="submit" name="completed" value="no" class="secondary">Not this time</button>
+                </form>
             </div>
-            <p class="garden-legend"><span class="legend-low"></span> Less growth <span class="legend-high"></span> More growth</p>
+            {% endif %}
         </section>
-        {% endif %}
-        <div class="garden">
-            {% for plant in plants %}
-                <div class="plant">&#127793; {{ plant }}</div>
-            {% endfor %}
-        </div>
-        {% if not viewing_name %}
-        <section class="buddy-section" aria-labelledby="buddy-heading">
-            <h2 id="buddy-heading">Garden buddies</h2>
-            <p>Post an offer or request an open offer. Both gardeners must confirm before sharing grids.</p>
+
+        <section class="dashboard-card buddy-section" id="buddy" aria-labelledby="buddy-heading">
+            <div class="card-heading">
+                <div>
+                    <p class="section-kicker">Better, together</p>
+                    <h2 id="buddy-heading">Buddy system</h2>
+                </div>
+                <span class="buddy-icon" aria-hidden="true">♡</span>
+            </div>
+            <p class="card-description">Find a garden buddy for gentle check-ins and shared encouragement. Both gardeners confirm before grids can be shared.</p>
             <form method="post" class="buddy-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="action" value="offer">
-                <label for="buddy-description">What kind of garden buddy are you looking for?</label>
-                <input id="buddy-description" name="description" type="text" maxlength="300" required placeholder="Weekly check-ins, plant tips…">
-                <button type="submit">Post an offer</button>
+                <label for="buddy-description">Who would you like to grow with?</label>
+                <div class="goal-input-row">
+                    <input id="buddy-description" name="description" type="text" maxlength="300" required placeholder="Weekly check-ins, plant tips…">
+                    <button type="submit">Post an offer</button>
+                </div>
             </form>
             {% if offers %}
             <ul class="buddy-list">
                 {% for offer in offers %}
-                <li>
-                    <strong>{{ offer.owner_name }}</strong>: {{ offer.description }}
+                <li class="buddy-offer">
+                    <div class="buddy-offer-copy"><strong>{{ offer.owner_name }}</strong><p>{{ offer.description }}</p></div>
                     {% if offer.owner_id == session.get('user_id') %}
                         {% if offer.recipient_id %}
-                            <p>Request from {{ offer.recipient_name }} — {% if offer.recipient_accepted and offer.owner_confirmed %}Connected{% elif offer.recipient_accepted %}Waiting for your confirmation{% else %}Waiting for them to accept{% endif %}</p>
+                            <p class="buddy-state">Request from {{ offer.recipient_name }} — {% if offer.recipient_accepted and offer.owner_confirmed %}Connected{% elif offer.recipient_accepted %}Waiting for your confirmation{% else %}Waiting for them to accept{% endif %}</p>
                             {% if offer.recipient_accepted and not offer.owner_confirmed %}
                             <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="confirm"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Confirm buddy</button></form>
                             {% endif %}
-                        {% else %}<p>Waiting for a gardener to request.</p>{% endif %}
+                        {% else %}<p class="buddy-state">Waiting for a gardener to request.</p>{% endif %}
                     {% elif offer.recipient_id == session.get('user_id') %}
                         {% if not offer.recipient_accepted %}
                         <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="accept"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Accept request</button></form>
-                        {% elif offer.owner_confirmed %}<p>Connected — you can view {{ offer.owner_name }}'s grid below.</p>
-                        {% else %}<p>You accepted. Waiting for the owner to confirm.</p>{% endif %}
+                        {% elif offer.owner_confirmed %}<p class="buddy-state">Connected — you can view {{ offer.owner_name }}'s grid below.</p>
+                        {% else %}<p class="buddy-state">You accepted. Waiting for the owner to confirm.</p>{% endif %}
                     {% elif not offer.recipient_id %}
                         <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="request"><input type="hidden" name="offer_id" value="{{ offer.id }}"><button type="submit">Request to connect</button></form>
                     {% endif %}
                 </li>
                 {% endfor %}
             </ul>
-            {% else %}<p>No buddy offers yet. Post the first one!</p>{% endif %}
+            {% else %}<p class="empty-state">No buddy offers yet. Post the first one!</p>{% endif %}
             {% if buddies %}
-            <h3>Connected gardeners</h3>
-            <ul>{% for buddy in buddies %}<li><a href="{{ url_for('garden', buddy=buddy.buddy_id) }}">View {{ buddy.buddy_name }}'s garden grid</a></li>{% endfor %}</ul>
+            <div class="connected-buddies">
+                <h3>Connected gardeners</h3>
+                <ul>{% for buddy in buddies %}<li><a href="{{ url_for('garden', buddy=buddy.buddy_id) }}">View {{ buddy.buddy_name }}'s garden grid <span aria-hidden="true">→</span></a></li>{% endfor %}</ul>
+            </div>
             {% endif %}
         </section>
-        {% else %}<p><a href="{{ url_for('garden') }}">Back to my garden</a></p>{% endif %}
+        {% else %}
+        <a class="back-to-garden" href="{{ url_for('garden') }}">← Back to my garden</a>
+        {% endif %}
     </main>
     {% if next_checkin_at and not checkin_due and not viewing_name %}
     <script>
         const countdown = document.getElementById("habit-countdown");
+        const progress = document.getElementById("timer-progress");
         const deadline = new Date(countdown.dataset.deadline).getTime();
+        const started = new Date(countdown.dataset.started).getTime();
+        const cycleLength = deadline - started;
         function updateHabitCountdown() {
             const remaining = Math.max(0, deadline - Date.now());
             const hours = Math.floor(remaining / 3600000);
             const minutes = Math.floor((remaining % 3600000) / 60000);
             const seconds = Math.floor((remaining % 60000) / 1000);
+            const elapsed = Math.min(1, Math.max(0, (Date.now() - started) / cycleLength));
             countdown.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            progress.style.width = `${elapsed * 100}%`;
             if (remaining === 0) window.location.reload();
         }
         updateHabitCountdown();

@@ -267,3 +267,515 @@ button,
         padding: 32px 24px;
     }
 }
+
+/* Garden dashboard */
+.garden-dashboard {
+    min-height: 100vh;
+    padding: 30px 18px;
+    color: #243c31;
+    font-family: "DM Sans", Arial, sans-serif;
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(215, 232, 241, .9), transparent 55%),
+        #f3f5ee;
+}
+
+.app-shell {
+    width: min(100%, 620px);
+    margin: 0 auto;
+    padding: 26px;
+    border: 1px solid #d4e0df;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #e4eff8 0%, #edf3f5 42%, #e9f0e7 100%);
+    box-shadow: 0 24px 70px rgba(35, 58, 42, .12);
+}
+
+.dashboard-header {
+    padding: 4px 4px 22px;
+    text-align: center;
+}
+
+.dashboard-brand {
+    color: #315d45;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dashboard-brand span {
+    color: #71986a;
+}
+
+.dashboard-welcome,
+.section-kicker {
+    margin: 0 0 7px;
+    color: #6a826e;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+
+.dashboard-welcome {
+    margin-top: 26px;
+}
+
+.dashboard-header h1 {
+    margin: 0;
+    color: #193c32;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(1.8rem, 6vw, 2.55rem);
+    font-weight: 600;
+    letter-spacing: -.04em;
+}
+
+.dashboard-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.dashboard-nav a {
+    padding: 8px 12px;
+    border: 1px solid rgba(49, 93, 69, .2);
+    border-radius: 999px;
+    color: #315d45;
+    background: rgba(255, 255, 255, .55);
+    font-size: .78rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dashboard-nav a:hover,
+.dashboard-nav a:focus-visible {
+    border-color: #315d45;
+    background: #fff;
+}
+
+.dashboard-card {
+    margin: 0 0 16px;
+    padding: 22px;
+    border: 1px solid #dce6dd;
+    border-radius: 17px;
+    background: rgba(255, 255, 255, .94);
+    box-shadow: 0 7px 18px rgba(35, 58, 42, .045);
+    scroll-margin-top: 18px;
+}
+
+.card-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.card-heading h2 {
+    margin: 0;
+    color: #193c32;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.55rem;
+    font-weight: 600;
+    letter-spacing: -.025em;
+}
+
+.timer-card {
+    padding: 20px 23px 18px;
+    border-color: #c9dbe3;
+    background: #f8fcfd;
+    text-align: center;
+}
+
+.timer-card .card-heading {
+    text-align: left;
+}
+
+.timer-status,
+.garden-tag,
+.goal-count {
+    padding: 7px 10px;
+    border-radius: 999px;
+    color: #315d45;
+    background: #e8f1e5;
+    font-size: .73rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.timer-status.is-ready {
+    color: #775713;
+    background: #fff0c7;
+}
+
+.timer-status.is-idle {
+    color: #65766a;
+    background: #edf0ec;
+}
+
+.timer-habit {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 17px 0 4px;
+    color: #68796c;
+    font-size: .76rem;
+}
+
+.timer-habit strong {
+    color: #284d38;
+    font-size: .98rem;
+}
+
+.timer-value {
+    margin: 9px 0 4px;
+    color: #193c32;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(2.2rem, 10vw, 3.2rem);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+    line-height: 1;
+}
+
+.timer-track {
+    height: 7px;
+    overflow: hidden;
+    margin: 15px 0 8px;
+    border-radius: 999px;
+    background: #e3ece5;
+}
+
+.timer-track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #8aaf79, #315d45);
+    transition: width .5s linear;
+}
+
+.timer-caption,
+.timer-empty {
+    margin: 7px 0 0;
+    color: #718075;
+    font-size: .84rem;
+}
+
+.timer-empty {
+    margin-top: 18px;
+}
+
+.garden-heading {
+    margin-bottom: 12px;
+}
+
+.garden-card .garden-map {
+    width: min(100%, 520px);
+    margin: 15px auto 0;
+    padding: 14px;
+    border-radius: 15px;
+    background:
+        radial-gradient(ellipse at 50% 0%, #eff7e8, transparent 70%),
+        #e9f0e1;
+}
+
+.garden-card .garden-grid {
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid #cfddc6;
+    border-radius: 9px;
+    background: #dce8d1;
+    box-shadow: inset 0 1px 4px rgba(33, 69, 39, .12);
+}
+
+.garden-card .garden-tile {
+    border-radius: 2px;
+}
+
+.garden-card .garden-legend {
+    margin: 11px 0 0;
+    font-size: .76rem;
+}
+
+.garden-card .legend-low,
+.garden-card .legend-high {
+    width: 12px;
+    height: 12px;
+}
+
+.garden-card .garden {
+    margin: 12px 0 0;
+}
+
+.card-description {
+    margin: 12px 0 18px;
+    color: #69776b;
+    font-size: .9rem;
+    line-height: 1.6;
+}
+
+.goal-count {
+    color: #68796c;
+    background: #f0f3ee;
+}
+
+.goal-form label,
+.buddy-form label {
+    margin: 0 0 8px;
+    color: #33473a;
+    font-size: .86rem;
+    font-weight: 700;
+}
+
+.goal-input-row {
+    display: flex;
+    align-items: stretch;
+    gap: 9px;
+}
+
+.goal-input-row input {
+    min-width: 0;
+    min-height: 46px;
+    border-color: #d6ded3;
+    background: #fdfefc;
+    font: inherit;
+}
+
+.goal-input-row input:focus {
+    border-color: #52775a;
+    outline: 3px solid rgba(82, 119, 90, .16);
+}
+
+.goal-input-row button,
+.dashboard-card button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 15px;
+    border-radius: 9px;
+    color: #fff;
+    background: #315d45;
+    font-size: .86rem;
+    font-weight: 700;
+}
+
+.goal-input-row button:hover,
+.dashboard-card button:hover {
+    background: #254a36;
+}
+
+.goal-note {
+    margin: 10px 0 0;
+    color: #718075;
+    font-size: .78rem;
+}
+
+.checkin-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid #e8d99e;
+    border-radius: 12px;
+    background: #fff9e9;
+}
+
+.checkin-panel .section-kicker {
+    color: #92733a;
+}
+
+.checkin-panel h3,
+.connected-buddies h3 {
+    margin: 0;
+    color: #33473a;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.12rem;
+}
+
+.checkin-panel p:not(.section-kicker) {
+    margin: 5px 0 0;
+    color: #6e715f;
+    font-size: .84rem;
+}
+
+.checkin-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.checkin-actions button {
+    width: 100%;
+}
+
+.checkin-actions .secondary {
+    color: #315d45;
+    background: #e7efe4;
+}
+
+.buddy-icon {
+    display: grid;
+    width: 39px;
+    height: 39px;
+    place-items: center;
+    border-radius: 50%;
+    color: #315d45;
+    background: #e8f1e5;
+    font-size: 1.45rem;
+}
+
+.buddy-form {
+    padding: 15px;
+    border-radius: 12px;
+    background: #f5f8f2;
+}
+
+.buddy-list,
+.connected-buddies ul {
+    display: grid;
+    gap: 10px;
+    padding: 0;
+    margin: 16px 0 0;
+    list-style: none;
+}
+
+.buddy-offer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #e1e9de;
+    border-radius: 12px;
+    background: #fbfcf9;
+}
+
+.buddy-offer-copy {
+    flex: 1 1 180px;
+}
+
+.buddy-offer-copy strong {
+    color: #315d45;
+}
+
+.buddy-offer-copy p,
+.buddy-state {
+    margin: 4px 0 0;
+    color: #69776b;
+    font-size: .84rem;
+    line-height: 1.5;
+}
+
+.buddy-state {
+    flex: 1 1 100%;
+}
+
+.buddy-offer form {
+    margin: 0;
+}
+
+.empty-state {
+    margin: 16px 0 0;
+    color: #718075;
+    font-size: .88rem;
+}
+
+.connected-buddies {
+    margin-top: 23px;
+}
+
+.connected-buddies h3 {
+    font-size: 1rem;
+}
+
+.connected-buddies li a {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 10px;
+    color: #315d45;
+    background: #f0f5ed;
+    font-size: .87rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dashboard-flash {
+    margin: 0 0 14px;
+}
+
+.viewing-note {
+    margin: -8px 0 18px;
+    color: #69776b;
+    text-align: center;
+}
+
+.back-to-garden {
+    display: inline-block;
+    margin: 3px 0 0 4px;
+    color: #315d45;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.garden-dashboard :focus-visible {
+    outline: 3px solid #dba947;
+    outline-offset: 3px;
+}
+
+@media (max-width: 520px) {
+    .garden-dashboard {
+        padding: 12px;
+    }
+
+    .app-shell {
+        padding: 17px;
+        border-radius: 19px;
+    }
+
+    .dashboard-header {
+        padding-bottom: 17px;
+    }
+
+    .dashboard-welcome {
+        margin-top: 19px;
+    }
+
+    .dashboard-card {
+        padding: 17px;
+        border-radius: 14px;
+    }
+
+    .timer-card {
+        padding: 17px;
+    }
+
+    .garden-card .garden-map {
+        padding: 9px;
+    }
+
+    .goal-input-row {
+        flex-direction: column;
+    }
+
+    .goal-input-row button {
+        width: 100%;
+    }
+
+    .checkin-panel {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .checkin-actions {
+        flex-direction: row;
+    }
+
+    .checkin-actions button {
+        flex: 1 1 0;
+        padding: 10px 8px;
+    }
+}
