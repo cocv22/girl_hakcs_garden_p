@@ -64,7 +64,6 @@ def init_db():
                 FOREIGN KEY (recipient_id) REFERENCES users (id)
             )"""
         )
-        # Add grid dimensions for databases created by earlier versions.
         garden_columns = {row[1] for row in connection.execute("PRAGMA table_info(gardens)")}
         if "rows" not in garden_columns:
             connection.execute("ALTER TABLE gardens ADD COLUMN rows INTEGER NOT NULL DEFAULT 20")
@@ -137,21 +136,15 @@ def ensure_default_garden(user_id):
         )
 
 
-def ChooseRandomTile(rng=None):
-    rng = rng or numpy.random
-    x = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
-    y = rng.randint(1, 19) if rng is numpy.random else rng.integers(1, 19)
-    return (x, y)
-
-
 def choose_random_tile_for_grid(garden, rng):
-    """Choose an interior tile so neighborhood operations stay inside the grid."""
-    draw = rng.randint if rng is numpy.random else rng.integers
+    """Return a valid tile while avoiding index errors on small grids."""
     if garden is None or len(garden.shape) < 2:
         raise ValueError("Garden must be a 2D array-like grid.")
     rows, columns = garden.shape[:2]
     if rows <= 0 or columns <= 0:
         raise ValueError("Garden grid cannot be empty.")
+
+    draw = rng.randint if rng is numpy.random else rng.integers
     row_start = 0 if rows <= 2 else 1
     row_end = rows if rows <= 2 else rows - 1
     column_start = 0 if columns <= 2 else 1
@@ -161,116 +154,6 @@ def choose_random_tile_for_grid(garden, rng):
     return int(row), int(column)
 
 
-def AddStuffToTileCircleR2(x, y, Garden):
-    AddStuffToTile(x, y, 2, Garden)
-    AddStuffToTile(x + 1, y, 1, Garden)
-    AddStuffToTile(x - 1, y, 1, Garden)
-    AddStuffToTile(x, y + 1, 1, Garden)
-    AddStuffToTile(x, y - 1, 1, Garden)
-
-
-def AddStuffToTile(x, y, Amount, Garden):
-    max_row = Garden.shape[0] - 1
-    max_column = Garden.shape[1] - 1
-    row = max(0, min(int(x), max_row))
-    column = max(0, min(int(y), max_column))
-    if Garden[row][column][1] > 0:
-        Garden[row][column][1] -= Amount
-    elif Garden[row][column][2] < 0:
-        Garden[row][column][2] -= Amount
-    else:
-        Garden[row][column][0] += Amount
-
-
-def RemoveStuffFromTile(x, y, Amount, Garden):
-    max_row = Garden.shape[0] - 1
-    max_column = Garden.shape[1] - 1
-    row = max(0, min(int(x), max_row))
-    column = max(0, min(int(y), max_column))
-    if Garden[row][column][0] > 0:
-        Garden[row][column][0] -= Amount
-    else:
-        Garden[row][column][1] += Amount
-
-
-def StrikeStuffFromTile(x, y, Amount, Garden):
-    max_row = Garden.shape[0] - 1
-    max_column = Garden.shape[1] - 1
-
-    def bounded_tile(row, column):
-        return (max(0, min(int(row), max_row)), max(0, min(int(column), max_column)))
-
-    center_row, center_column = bounded_tile(x, y)
-    if Garden[center_row][center_column][0] < 35:
-        Garden[center_row][center_column][0] = 0
-        Garden[center_row][center_column][1] = 20
-    else:
-        Garden[center_row][center_column][0] -= 20
-
-    for neighbor_row, neighbor_column in ((x - 1, y), (x + 1, y), (x, y + 1), (x, y - 1)):
-        row, column = bounded_tile(neighbor_row, neighbor_column)
-        if Garden[row][column][0] < 10:
-            Garden[row][column][0] = 0
-            Garden[row][column][1] = 5
-        else:
-            Garden[row][column][0] -= 5
-
-
-def DecayStuffFromTile(x, y, Amount, Garden):
-    max_row = Garden.shape[0] - 1
-    max_column = Garden.shape[1] - 1
-    row = max(0, min(int(x), max_row))
-    column = max(0, min(int(y), max_column))
-    Garden[row][column][2] += Amount
-
-
-def ChangeGardenOversVars(NegativeTotal1, NegativeTotal2, PositiveTotal, Decay, Garden, rng=None):
-    if rng is None:
-        rng = numpy.random.default_rng()
-    while PositiveTotal > 0:
-        x, y = choose_random_tile_for_grid(Garden, rng)
-        if PositiveTotal > 6:
-            AddStuffToTileCircleR2(x, y, Garden)
-            PositiveTotal -= 6
-        else:
-            AddStuffToTile(x, y, PositiveTotal, Garden)
-            PositiveTotal = 0
-    while NegativeTotal1 > 0:
-        x, y = choose_random_tile_for_grid(Garden, rng)
-        RemoveStuffFromTile(x, y, 1, Garden)
-        NegativeTotal1 -= 1
-    while NegativeTotal2 >= 50:
-        x, y = choose_random_tile_for_grid(Garden, rng)
-        StrikeStuffFromTile(x, y, 50, Garden)
-        NegativeTotal2 -= 50
-    while Decay > 0:
-        x, y = choose_random_tile_for_grid(Garden, rng)
-        DecayStuffFromTile(x, y, 1, Garden)
-        Decay -= 1
-
-    return (NegativeTotal1, NegativeTotal2, PositiveTotal, Decay)
-
-
-def GetTier(value, tiers):
-    low = 0
-    high = len(tiers)
-    while low < high:
-        mid = (low + high) // 2
-        if tiers[mid] <= value:
-            low = mid + 1
-        else:
-            high = mid
-    return max(0, low - 1)
-
-
-def RealizeDecay(Garden, Tiers):
-    for x in range(Garden.shape[0]):
-        for y in range(Garden.shape[1]):
-            remaining = max(0, Garden[x][y][0] - Garden[x][y][2])
-            if GetTier(Garden[x][y][0], Tiers) > GetTier(remaining, Tiers):
-                Garden[x][y][0] = remaining
-
-
 def build_garden_grid(preferences, user_id):
     """Create a sized garden grid with the simulation's base growth per tile."""
     rows = preferences["rows"]
@@ -278,30 +161,6 @@ def build_garden_grid(preferences, user_id):
     garden_grid = numpy.zeros((rows, columns, 3), dtype=int)
     garden_grid[:, :, 0] = 5
     return garden_grid
-
-
-TIERS1 = [0, 2, 5, 15, 30, 70, 200, 400]
-NEGATIVE_TIERS = [1, 5, 20, 70, 350]
-
-
-def GetTier(value, tiers):
-    low = 0
-    high = len(tiers)
-    while low < high:
-        mid = (low + high) // 2
-        if tiers[mid] <= value:
-            low = mid + 1
-        else:
-            high = mid
-    return max(0, low - 1)
-
-
-def GetTileTier(Garden, x, y):
-    positive_tier = GetTier(Garden[x][y][0], TIERS1)
-    if positive_tier != 0:
-        return positive_tier, False
-    negative_tier = GetTier(Garden[x][y][1], NEGATIVE_TIERS)
-    return negative_tier, negative_tier != 0
 
 
 @app.route("/")
@@ -381,6 +240,19 @@ def garden():
         return redirect(url_for("login"))
 
     action = request.form.get("action")
+    if request.method == "POST" and action == "advance_timer":
+        habit_id = request.form.get("habit_id", type=int)
+        if habit_id is None:
+            flash("Select a habit to advance.", "error")
+            return redirect(url_for("garden"))
+        with sqlite3.connect(DATABASE) as connection:
+            connection.execute(
+                "UPDATE habits SET timer_started_at = ? WHERE id = ? AND user_id = ?",
+                ((datetime.now(timezone.utc) - timedelta(hours=25)).isoformat(), habit_id, user_id),
+            )
+        flash("Timer moved forward.", "success")
+        return redirect(url_for("garden", habit=habit_id))
+
     if request.method == "POST" and action == "checkin":
         completed_value = request.form.get("completed")
         habit_id = request.form.get("habit_id", type=int)
@@ -518,6 +390,7 @@ def garden():
             plants = []
             needs_setup = False
             grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
+
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             habits = [
@@ -527,17 +400,20 @@ def garden():
                     (user_id,),
                 ).fetchall()
             ]
+
         now = datetime.now(timezone.utc)
         for habit in habits:
             started_at = datetime.fromisoformat(habit["timer_started_at"])
             next_checkin_at = started_at + timedelta(hours=24)
             habit["next_checkin_at"] = next_checkin_at.isoformat()
             habit["checkin_due"] = now >= next_checkin_at
+
         requested_habit_id = request.args.get("habit", type=int)
         selected_habit = next(
             (habit for habit in habits if habit["id"] == requested_habit_id),
             habits[0] if habits else None,
         )
+
         timer_started_at = (
             datetime.fromisoformat(selected_habit["timer_started_at"])
             if selected_habit else None
@@ -545,6 +421,8 @@ def garden():
         next_checkin_at = timer_started_at + timedelta(hours=24) if timer_started_at else None
         checkin_due = bool(selected_habit and selected_habit["checkin_due"])
         daily_goal = selected_habit["name"] if selected_habit else ""
+        timer_deadline = next_checkin_at.isoformat() if next_checkin_at else ""
+
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             offers = connection.execute(
@@ -564,6 +442,7 @@ def garden():
                      AND b.recipient_accepted = 1 AND b.owner_confirmed = 1""",
                 (user_id, user_id, user_id, user_id),
             ).fetchall()
+
         viewing = request.args.get("buddy", type=int)
         if viewing:
             authorized = any(row["buddy_id"] == viewing for row in buddies)
@@ -588,20 +467,14 @@ def garden():
         else:
             viewing_name = None
 
-        tile_tiers = [
-            [GetTileTier(grid, row_index, column_index) for column_index in range(len(row))]
-            for row_index, row in enumerate(grid)
-        ] if grid else []
-        timer_deadline = selected_habit["next_checkin_at"] if selected_habit and not checkin_due else None
-        timer_started_at = selected_habit["timer_started_at"] if selected_habit else None
-
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
-                               tile_tiers=tile_tiers,
                                offers=offers, buddies=buddies, viewing_name=viewing_name,
                                habits=habits, selected_habit=selected_habit,
                                checkin_due=checkin_due,
+                               next_checkin_at=next_checkin_at.isoformat() if next_checkin_at else "",
                                timer_deadline=timer_deadline,
-                               timer_started_at=timer_started_at,
+                               timer_started_at=timer_started_at.isoformat() if timer_started_at else "",
+                               habit_timer_started_at=timer_started_at.isoformat() if timer_started_at else "",
                                daily_goal=daily_goal,
                                daily_limit=preferences["daily_limit"] if preferences else 0,
                                preferences=preferences)

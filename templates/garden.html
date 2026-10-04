@@ -60,6 +60,7 @@
             <form method="post" class="timer-actions">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="action" value="advance_timer">
+                <input type="hidden" name="habit_id" value="{{ selected_habit.id if selected_habit else '' }}">
                 <button type="submit">Move timer forward</button>
             </form>
             <p class="timer-caption">Skip ahead to check in during a presentation.</p>
@@ -85,8 +86,7 @@
                         {% set row_index = loop.index0 %}
                         {% for tile in row %}
                             {% set growth = tile[0] %}
-                            {% set tier_index = tile_tiers[row_index][loop.index0][0] %}
-                            <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"><img class="garden-tile-image" src="{{ url_for('static', filename='images/' ~ tier_index ~ '.gif') }}" alt=""></span>
+                            <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"><img class="garden-tile-image" src="{{ url_for('static', filename='images/animation-12.gif') }}" alt=""></span>
                         {% endfor %}
                     {% endfor %}
                 </div>
@@ -107,10 +107,37 @@
                     <h2 id="goal-heading">Daily goal</h2>
                 </div>
             </div>
+            {% if habits %}
+            <form method="get" class="habit-picker-form" aria-label="Choose a habit">
+                <label for="habit-select">Active habit</label>
+                <select id="habit-select" name="habit" onchange="this.form.submit()">
+                    {% for habit in habits %}
+                    <option value="{{ habit.id }}" {% if selected_habit and selected_habit.id == habit.id %}selected{% endif %}>{{ habit.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
             {% if daily_goal %}
             <p class="card-description">Your current practice: <strong>{{ daily_goal }}</strong></p>
             {% else %}
             <p class="card-description">Set up your garden to choose a daily goal.</p>
+            {% endif %}
+            <form method="post" class="goal-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="save_goal">
+                <label for="daily-goal-input">Add a new habit</label>
+                <div class="goal-input-row">
+                    <input id="daily-goal-input" name="daily_goal" type="text" maxlength="200" placeholder="Read 10 pages, stretch, water plants…" aria-label="Add a new habit">
+                    <button type="submit">Add habit</button>
+                </div>
+            </form>
+            {% if selected_habit %}
+            <form method="post" class="delete-habit-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="delete_goal">
+                <input type="hidden" name="habit_id" value="{{ selected_habit.id }}">
+                <button type="submit" class="delete-habit-button">Delete selected habit</button>
+            </form>
             {% endif %}
             {% if checkin_due and daily_goal %}
             <div class="checkin-panel" aria-labelledby="checkin-heading">
@@ -122,6 +149,7 @@
                 <form method="post" class="checkin-actions">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="action" value="checkin">
+                    <input type="hidden" name="habit_id" value="{{ selected_habit.id if selected_habit else '' }}">
                     <button type="submit" name="completed" value="yes">Yes, I did</button>
                     <button type="submit" name="completed" value="no" class="secondary">Not this time</button>
                 </form>
