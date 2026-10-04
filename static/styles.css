@@ -459,6 +459,10 @@ button,
     transition: width .5s linear;
 }
 
+.timer-actions {
+    margin-top: 14px;
+}
+
 .timer-caption,
 .timer-empty {
     margin: 7px 0 0;

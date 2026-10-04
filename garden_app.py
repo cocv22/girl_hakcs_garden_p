@@ -4,7 +4,7 @@ import json
 import secrets
 import sqlite3
 import numpy
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -309,6 +309,27 @@ def garden():
         return redirect(url_for("login"))
 
     action = request.form.get("action")
+    if request.method == "POST" and action == "advance_timer":
+        today = date.today().isoformat()
+        with sqlite3.connect(DATABASE) as connection:
+            connection.row_factory = sqlite3.Row
+            preferences = connection.execute(
+                "SELECT daily_goal, last_checkin FROM gardens WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if preferences is None or not preferences["daily_goal"] or not preferences["last_checkin"]:
+                flash("Set up a garden and daily goal before starting the timer.", "error")
+            elif preferences["last_checkin"] < today:
+                flash("Your check-in is already ready.", "success")
+            else:
+                previous_day = (date.today() - timedelta(days=1)).isoformat()
+                connection.execute(
+                    "UPDATE gardens SET last_checkin = ? WHERE user_id = ?",
+                    (previous_day, user_id),
+                )
+                flash("Timer moved forward. Your check-in is ready.", "success")
+        return redirect(url_for("garden"))
+
     if request.method == "POST" and action == "checkin":
         completed = request.form.get("completed") == "yes"
         today = date.today().isoformat()
@@ -407,6 +428,12 @@ def garden():
             grid = json.loads(preferences["grid_state"]) if preferences["grid_state"] else build_garden_grid(preferences, user_id).tolist()
             garden_description = preferences["description"]
         checkin_due = bool(preferences and preferences["daily_goal"] and preferences["last_checkin"] and preferences["last_checkin"] < date.today().isoformat())
+        timer_deadline = None
+        timer_started_at = None
+        if preferences and preferences["daily_goal"] and preferences["last_checkin"] and not checkin_due:
+            last_checkin = date.fromisoformat(preferences["last_checkin"])
+            timer_started_at = datetime.combine(last_checkin, time.min).timestamp() * 1000
+            timer_deadline = datetime.combine(last_checkin + timedelta(days=1), time.min).timestamp() * 1000
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             offers = connection.execute(
@@ -459,6 +486,7 @@ def garden():
                                tile_tiers=tile_tiers,
                                offers=offers, buddies=buddies, viewing_name=viewing_name,
                                garden_description=garden_description, checkin_due=checkin_due,
+                               timer_deadline=timer_deadline, timer_started_at=timer_started_at,
                                daily_goal=preferences["daily_goal"] if preferences else "",
                                daily_limit=preferences["daily_limit"] if preferences else 0,
                                preferences=preferences)
