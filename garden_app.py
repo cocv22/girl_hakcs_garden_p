@@ -345,7 +345,9 @@ def garden():
         if preferences is None:
             plants = []
             needs_setup = True
-            grid = None
+            # Keep the garden visible before a user saves their own dimensions.
+            # The setup link still lets them choose the real grid and describe it.
+            grid = build_garden_grid({"rows": 20, "columns": 20}, user_id).tolist()
             garden_description = ""
         else:
             plants = []
