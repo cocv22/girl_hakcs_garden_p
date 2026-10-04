@@ -14,42 +14,9 @@
 
     <main class="container">
 
-        <h1>Set Up Your Garden</h1>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% for category, message in messages %}
-                <p class="message {{ category }}" role="alert">{{ message }}</p>
-            {% endfor %}
-        {% endwith %}
-
-        <form action="{{ url_for('garden') }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="action" value="setup">
-
-            <h2>What size should your garden grid be?</h2>
-            <p>Choose the number of rows and columns (3 to 30 each). Every tile starts with 5 growth points.</p>
-
-            <label for="rows">Rows</label>
-            <input id="rows" type="number" name="rows" min="3" max="30" value="{{ preferences['rows'] if preferences else 20 }}" required>
-
-            <label for="columns">Columns</label>
-            <input id="columns" type="number" name="columns" min="3" max="30" value="{{ preferences['columns'] if preferences else 20 }}" required>
-
-            <h2>Your daily goal</h2>
-            <p>Choose one small goal to work toward. Your garden will grow when you complete it.</p>
-            <label for="daily_goal">What will you dedicate yourself to?</label>
-            <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ preferences['daily_goal'] if preferences else '' }}" placeholder="I will start eating healthier">
-            <label for="daily_limit">Daily limit (number)</label>
-            <input id="daily_limit" type="number" name="daily_limit" min="0" max="100" value="{{ preferences['daily_limit'] if preferences else 0 }}" required>
-            <p>Small steps count. Come back tomorrow and check in honestly; every completed day adds 1 point to a garden tile.</p>
-
-            <br>
-
-            <button type="submit">
-                Create My Garden
-            </button>
-
-        </form>
+        <h1>Garden setup has moved</h1>
+        <p>Your garden is ready. Set or update a habit directly from the garden page.</p>
+        <a class="button" href="{{ url_for('garden') }}">Go to my garden</a>
 
     </main>
 

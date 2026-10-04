@@ -16,23 +16,35 @@
             {% endfor %}
         {% endwith %}
 
-        {% if viewing_name and needs_setup %}
-            <p>{{ viewing_name }} has not set up a garden grid yet.</p>
-        {% elif needs_setup %}
-            <p>Choose your grid size to set up your garden. Every tile starts with 5 growth points.</p>
-        {% elif viewing_name %}
+        {% if viewing_name %}
             <p>Viewing {{ viewing_name }}'s garden grid.</p>
         {% else %}
             <p>Your garden grid is ready. Every tile starts with 5 growth points.</p>
         {% endif %}
         {% if daily_goal and not viewing_name %}
-            <p><strong>Today's goal:</strong> {{ daily_goal }} — limit: {{ daily_limit }}</p>
-            <p>Keep going at your own pace. A completed check-in adds 1 point to one randomly selected tile.</p>
+            <p><strong>Habit:</strong> {{ daily_goal }}</p>
+            <p>Complete a check-in once every 24 hours. A completed habit adds 1 point to a garden tile.</p>
+            {% if next_checkin_at and not checkin_due %}
+            <p>Next check-in opens in <strong id="habit-countdown" data-deadline="{{ next_checkin_at }}">calculating…</strong>.</p>
+            {% endif %}
+        {% endif %}
+        {% if not viewing_name %}
+        <section class="message" aria-labelledby="habit-heading">
+            <h2 id="habit-heading">{% if daily_goal %}Update your habit or goal{% else %}Choose a habit or goal{% endif %}</h2>
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="save_goal">
+                <label for="daily_goal">What will you practice?</label>
+                <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required value="{{ daily_goal }}" placeholder="Take a 10-minute walk">
+                <button type="submit">{% if daily_goal %}Save new habit{% else %}Start tracking{% endif %}</button>
+            </form>
+            {% if daily_goal %}<p>Saving a new habit starts a fresh 24-hour cycle.</p>{% endif %}
+        </section>
         {% endif %}
         {% if checkin_due and not viewing_name %}
         <section class="message success" aria-labelledby="checkin-heading">
-            <h2 id="checkin-heading">How did yesterday go?</h2>
-            <p>Did you complete your goal: {{ daily_goal }} (limit: {{ daily_limit }})?</p>
+            <h2 id="checkin-heading">Your 24-hour check-in is ready</h2>
+            <p>Did you complete your habit: {{ daily_goal }}?</p>
             <form method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="action" value="checkin">
@@ -60,10 +72,6 @@
                 <div class="plant">&#127793; {{ plant }}</div>
             {% endfor %}
         </div>
-        {% if not viewing_name %}<a class="button" href="{{ url_for('questions') }}">
-            {% if needs_setup %}Set up my garden{% else %}Update my garden{% endif %}
-        </a>{% endif %}
-
         {% if not viewing_name %}
         <section class="buddy-section" aria-labelledby="buddy-heading">
             <h2 id="buddy-heading">Garden buddies</h2>
@@ -106,5 +114,21 @@
         </section>
         {% else %}<p><a href="{{ url_for('garden') }}">Back to my garden</a></p>{% endif %}
     </main>
+    {% if next_checkin_at and not checkin_due and not viewing_name %}
+    <script>
+        const countdown = document.getElementById("habit-countdown");
+        const deadline = new Date(countdown.dataset.deadline).getTime();
+        function updateHabitCountdown() {
+            const remaining = Math.max(0, deadline - Date.now());
+            const hours = Math.floor(remaining / 3600000);
+            const minutes = Math.floor((remaining % 3600000) / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            countdown.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            if (remaining === 0) window.location.reload();
+        }
+        updateHabitCountdown();
+        setInterval(updateHabitCountdown, 1000);
+    </script>
+    {% endif %}
 </body>
 </html>
