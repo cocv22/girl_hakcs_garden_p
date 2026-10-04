@@ -25,13 +25,30 @@
             <p>Your garden grid is ready. Every tile starts with 5 growth points.</p>
         {% endif %}
         {% if garden_description %}<p class="garden-description">{{ garden_description }}</p>{% endif %}
+        {% if daily_goal and not viewing_name %}
+            <p><strong>Today's goal:</strong> {{ daily_goal }} — limit: {{ daily_limit }}</p>
+            <p>Keep going at your own pace. A completed check-in adds 1 point to one randomly selected tile.</p>
+        {% endif %}
+        {% if checkin_due and not viewing_name %}
+        <section class="message success" aria-labelledby="checkin-heading">
+            <h2 id="checkin-heading">How did yesterday go?</h2>
+            <p>Did you complete your goal: {{ daily_goal }} (limit: {{ daily_limit }})?</p>
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="checkin">
+                <button type="submit" name="completed" value="yes">Yes, I did</button>
+                <button type="submit" name="completed" value="no" class="secondary">Not this time</button>
+            </form>
+        </section>
+        {% endif %}
         {% if grid %}
         <section class="garden-map" aria-label="Your simulated garden grid">
             <div class="garden-grid" role="img" aria-label="{{ grid|length }} by {{ grid[0]|length }} garden grid. Darker green tiles contain more growth." style="grid-template-columns: repeat({{ grid[0]|length }}, minmax(0, 1fr)); grid-template-rows: repeat({{ grid|length }}, minmax(0, 1fr)); aspect-ratio: {{ grid[0]|length }} / {{ grid|length }};">
                 {% for row in grid %}
+                    {% set row_index = loop.index0 %}
                     {% for tile in row %}
                         {% set growth = tile[0] %}
-                        <span class="garden-tile growth-{{ [growth // 10, 5] | min }}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"></span>
+                        <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"></span>
                     {% endfor %}
                 {% endfor %}
             </div>

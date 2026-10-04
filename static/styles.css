@@ -93,6 +93,11 @@ button,
     background: #f4f1df;
 }
 
+.garden-tile.goal-tile {
+    outline: 2px solid #274d32;
+    outline-offset: -2px;
+}
+
 .growth-0 { background: #e6eddc; }
 .growth-1 { background: #d7e7c5; }
 .growth-2 { background: #b6d49b; }
