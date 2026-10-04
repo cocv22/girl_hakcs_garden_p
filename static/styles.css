@@ -78,19 +78,23 @@ button,
 
 .garden-grid {
     display: grid;
-    gap: 3px;
-    padding: 8px;
-    border: 1px solid #c9d8bc;
+    gap: 1px;
+    padding: 2px;
+    border: 0;
     border-radius: 10px;
-    background: #8a9b7d;
+    background: #d7e7c5;
     aspect-ratio: 1;
 }
 
 .garden-tile {
     min-width: 0;
     min-height: 0;
-    border-radius: 2px;
-    background: #f4f1df;
+    border-radius: 1px;
+    background-image: url("/static/images/pixilart-drawing.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    image-rendering: pixelated;
 }
 
 .garden-tile.goal-tile {
@@ -98,12 +102,12 @@ button,
     outline-offset: -2px;
 }
 
-.growth-0 { background: #e6eddc; }
-.growth-1 { background: #d7e7c5; }
-.growth-2 { background: #b6d49b; }
-.growth-3 { background: #8fbd78; }
-.growth-4 { background: #669b5b; }
-.growth-5 { background: #3f7548; }
+.growth-0 { background-color: #e6eddc; }
+.growth-1 { background-color: #d7e7c5; }
+.growth-2 { background-color: #b6d49b; }
+.growth-3 { background-color: #8fbd78; }
+.growth-4 { background-color: #669b5b; }
+.growth-5 { background-color: #3f7548; }
 
 .garden-legend {
     display: flex;
@@ -119,7 +123,7 @@ button,
     width: 15px;
     height: 15px;
     border-radius: 3px;
-    background: #f4f1df;
+    background-color: #f4f1df;
 }
 
 .legend-high { background: #3f7548; }
