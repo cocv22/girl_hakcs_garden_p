@@ -51,15 +51,21 @@
             {% if daily_goal %}
             <p class="timer-habit"><span>Current habit</span><strong>{{ daily_goal }}</strong></p>
             {% if checkin_due %}
-            <p class="timer-value" aria-live="polite">00:00:00</p>
+            <p class="timer-value" aria-live="polite">Check-in ready</p>
             <p class="timer-caption">Your next check-in is ready below.</p>
-            {% elif next_checkin_at %}
-            <p class="timer-value" aria-live="off" id="habit-countdown" data-deadline="{{ next_checkin_at }}" data-started="{{ habit_timer_started_at }}">calculating…</p>
+            {% elif timer_deadline %}
+            <p class="timer-value" aria-live="off" id="habit-countdown" data-deadline="{{ timer_deadline }}" data-started="{{ timer_started_at }}">calculating…</p>
             <div class="timer-track" aria-hidden="true"><span id="timer-progress"></span></div>
             <p class="timer-caption">until your next check-in</p>
+            <form method="post" class="timer-actions">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="action" value="advance_timer">
+                <button type="submit">Move timer forward</button>
+            </form>
+            <p class="timer-caption">Skip ahead to check in during a presentation.</p>
             {% endif %}
             {% else %}
-            <p class="timer-empty">Choose a habit below to start your first 24-hour cycle.</p>
+            <p class="timer-empty">A daily goal will appear here once your garden is set up.</p>
             {% endif %}
         </section>
         {% endif %}
@@ -79,7 +85,8 @@
                         {% set row_index = loop.index0 %}
                         {% for tile in row %}
                             {% set growth = tile[0] %}
-                            <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"></span>
+                            {% set tier_index = tile_tiers[row_index][loop.index0][0] %}
+                            <span class="garden-tile growth-{{ [growth // 10, 5] | min }}{% if not viewing_name and preferences and row_index == preferences['goal_tile_row'] and loop.index0 == preferences['goal_tile_column'] %} goal-tile{% endif %}" title="Growth: {{ growth }} · Soil: {{ tile[1] }} · Decay: {{ tile[2] }}"><img class="garden-tile-image" src="{{ url_for('static', filename='images/' ~ tier_index ~ '.gif') }}" alt=""></span>
                         {% endfor %}
                     {% endfor %}
                 </div>
@@ -93,45 +100,19 @@
         {% endif %}
 
         {% if not viewing_name %}
-        <section class="dashboard-card goals-card" id="goals" aria-labelledby="habit-heading">
+        <section class="dashboard-card goals-card" id="goals" aria-labelledby="goal-heading">
             <div class="card-heading">
                 <div>
                     <p class="section-kicker">Small promises to yourself</p>
-                    <h2 id="habit-heading">Habit console</h2>
+                    <h2 id="goal-heading">Daily goal</h2>
                 </div>
-                <span class="goal-count">{{ habits|length }} active habit{% if habits|length != 1 %}s{% endif %}</span>
             </div>
-            <p class="card-description">Add habits you want to keep growing. Choose an ongoing habit to see its timer and check in when it is ready.</p>
-            {% if habits %}
-            <form method="get" action="{{ url_for('garden') }}#goals" class="habit-picker-form">
-                <label for="habit-picker">Ongoing habits</label>
-                <select id="habit-picker" name="habit" onchange="this.form.submit()">
-                    {% for habit in habits %}
-                    <option value="{{ habit.id }}"{% if selected_habit and habit.id == selected_habit.id %} selected{% endif %}>{{ habit.name }}{% if habit.checkin_due %} — check-in ready{% endif %}</option>
-                    {% endfor %}
-                </select>
-                <noscript><button type="submit">View habit</button></noscript>
-            </form>
+            {% if daily_goal %}
+            <p class="card-description">Your current practice: <strong>{{ daily_goal }}</strong></p>
+            {% else %}
+            <p class="card-description">Set up your garden to choose a daily goal.</p>
             {% endif %}
-            <form method="post" class="goal-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="action" value="save_goal">
-                <label for="daily_goal">{% if habits %}Add another habit{% else %}What will you practice?{% endif %}</label>
-                <div class="goal-input-row">
-                    <input id="daily_goal" type="text" name="daily_goal" maxlength="200" required placeholder="Take a 10-minute walk">
-                    <button type="submit">Add habit</button>
-                </div>
-            </form>
-            {% if selected_habit %}
-            <p class="goal-note">Each habit has its own 24-hour timer. Adding another habit won't reset existing timers.</p>
-            <form method="post" class="delete-habit-form" onsubmit="return confirm('Delete this habit and its timer?')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="action" value="delete_goal">
-                <input type="hidden" name="habit_id" value="{{ selected_habit.id }}">
-                <button type="submit" class="delete-habit-button">Delete selected habit</button>
-            </form>
-            {% endif %}
-            {% if checkin_due and selected_habit %}
+            {% if checkin_due and daily_goal %}
             <div class="checkin-panel" aria-labelledby="checkin-heading">
                 <div>
                     <p class="section-kicker">Your daily moment</p>
@@ -141,7 +122,6 @@
                 <form method="post" class="checkin-actions">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="action" value="checkin">
-                    <input type="hidden" name="habit_id" value="{{ selected_habit.id }}">
                     <button type="submit" name="completed" value="yes">Yes, I did</button>
                     <button type="submit" name="completed" value="no" class="secondary">Not this time</button>
                 </form>
@@ -202,32 +182,25 @@
         <a class="back-to-garden" href="{{ url_for('garden') }}">← Back to my garden</a>
         {% endif %}
     </main>
-    {% if next_checkin_at and not checkin_due and not viewing_name %}
+    {% if timer_deadline and not checkin_due and not viewing_name %}
     <script>
         const countdown = document.getElementById("habit-countdown");
         const progress = document.getElementById("timer-progress");
-        if (countdown && progress) {
-            const deadline = new Date(countdown.dataset.deadline).getTime();
-            const started = new Date(countdown.dataset.started).getTime();
-            if (!Number.isNaN(deadline) && !Number.isNaN(started)) {
-                const cycleLength = Math.max(1, deadline - started);
-                function updateHabitCountdown() {
-                    const remaining = Math.max(0, deadline - Date.now());
-                    if (remaining <= 0) {
-                        window.location.reload();
-                        return;
-                    }
-                    const hours = Math.floor(remaining / 3600000);
-                    const minutes = Math.floor((remaining % 3600000) / 60000);
-                    const seconds = Math.floor((remaining % 60000) / 1000);
-                    const elapsed = Math.min(1, Math.max(0, (Date.now() - started) / cycleLength));
-                    countdown.textContent = `${hours}h ${minutes}m ${seconds}s`;
-                    progress.style.width = `${elapsed * 100}%`;
-                }
-                updateHabitCountdown();
-                setInterval(updateHabitCountdown, 1000);
-            }
+        const deadline = new Date(countdown.dataset.deadline).getTime();
+        const started = new Date(countdown.dataset.started).getTime();
+        const cycleLength = deadline - started;
+        function updateHabitCountdown() {
+            const remaining = Math.max(0, deadline - Date.now());
+            const hours = Math.floor(remaining / 3600000);
+            const minutes = Math.floor((remaining % 3600000) / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            const elapsed = Math.min(1, Math.max(0, (Date.now() - started) / cycleLength));
+            countdown.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            progress.style.width = `${elapsed * 100}%`;
+            if (remaining === 0) window.location.reload();
         }
+        updateHabitCountdown();
+        setInterval(updateHabitCountdown, 1000);
     </script>
     {% endif %}
 </body>
