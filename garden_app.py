@@ -46,6 +46,7 @@ def init_db():
                 experience TEXT NOT NULL,
                 rows INTEGER NOT NULL DEFAULT 20,
                 columns INTEGER NOT NULL DEFAULT 20,
+                description TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )"""
         )
@@ -69,6 +70,8 @@ def init_db():
             connection.execute("ALTER TABLE gardens ADD COLUMN rows INTEGER NOT NULL DEFAULT 20")
         if "columns" not in garden_columns:
             connection.execute("ALTER TABLE gardens ADD COLUMN columns INTEGER NOT NULL DEFAULT 20")
+        if "description" not in garden_columns:
+            connection.execute("ALTER TABLE gardens ADD COLUMN description TEXT NOT NULL DEFAULT ''")
 
 
 init_db()
@@ -266,19 +269,10 @@ def questions():
     with sqlite3.connect(DATABASE) as connection:
         connection.row_factory = sqlite3.Row
         preferences = connection.execute(
-            "SELECT sun, water, experience, rows, columns FROM gardens WHERE user_id = ?",
+            "SELECT rows, columns, description FROM gardens WHERE user_id = ?",
             (session["user_id"],),
         ).fetchone()
     return render_template("questions.html", preferences=preferences)
-
-
-def recommend_plants(sun, water, experience):
-    plants = ["Tomatoes", "Basil", "Marigolds"] if sun == "sunny" else ["Lettuce", "Spinach", "Mint"]
-    if water == "low":
-        plants.append("Rosemary, a drought-tolerant choice")
-    if experience == "beginner":
-        plants.append("Easy-to-grow herbs are a good place to start")
-    return plants
 
 
 @app.route("/garden", methods=["GET", "POST"])
@@ -287,8 +281,8 @@ def garden():
     if user_id is None:
         return redirect(url_for("login"))
 
-    if request.method == "POST":
-        action = request.form.get("action")
+    action = request.form.get("action")
+    if request.method == "POST" and action in {"offer", "request", "accept", "confirm"}:
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             try:
@@ -336,22 +330,28 @@ def garden():
                 flash("That buddy action could not be completed. Refresh and try again.", "error")
         return redirect(url_for("garden"))
 
+    if request.method == "POST" and action != "setup":
+        flash("Unknown garden action.", "error")
+        return redirect(url_for("garden"))
+
     if request.method == "GET":
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             preferences = connection.execute(
-                "SELECT sun, water, experience, rows, columns FROM gardens WHERE user_id = ?",
+                "SELECT rows, columns, description FROM gardens WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
 
         if preferences is None:
-            plants = ["Basil", "Lettuce", "Marigolds"]
+            plants = []
             needs_setup = True
             grid = None
+            garden_description = ""
         else:
-            plants = recommend_plants(preferences["sun"], preferences["water"], preferences["experience"])
+            plants = []
             needs_setup = False
             grid = build_garden_grid(preferences, user_id).tolist()
+            garden_description = preferences["description"]
         with sqlite3.connect(DATABASE) as connection:
             connection.row_factory = sqlite3.Row
             offers = connection.execute(
@@ -377,7 +377,7 @@ def garden():
             with sqlite3.connect(DATABASE) as connection:
                 connection.row_factory = sqlite3.Row
                 shared_preferences = connection.execute(
-                    "SELECT rows, columns FROM gardens WHERE user_id = ?", (viewing,)
+                    "SELECT rows, columns, description FROM gardens WHERE user_id = ?", (viewing,)
                 ).fetchone() if authorized else None
                 buddy = connection.execute("SELECT name FROM users WHERE id = ?", (viewing,)).fetchone() if authorized else None
             if not authorized:
@@ -387,15 +387,18 @@ def garden():
                 grid = build_garden_grid(shared_preferences, viewing).tolist()
                 plants = []
                 needs_setup = False
+                garden_description = shared_preferences["description"]
             else:
                 grid = None
                 plants = []
                 needs_setup = True
+                garden_description = ""
             viewing_name = buddy["name"]
         else:
             viewing_name = None
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
-                               offers=offers, buddies=buddies, viewing_name=viewing_name)
+                               offers=offers, buddies=buddies, viewing_name=viewing_name,
+                               garden_description=garden_description)
 
     try:
         rows = int(request.form.get("rows", "20"))
@@ -407,24 +410,20 @@ def garden():
         flash("Choose grid dimensions from 3 to 30.", "error")
         return redirect(url_for("questions"))
 
-    sun = request.form.get("sun", "sunny")
-    water = request.form.get("water", "high")
-    experience = request.form.get("experience", "beginner")
-    if sun not in {"sunny", "shady"} or water not in {"low", "high"} or experience not in {"beginner", "experienced"}:
-        flash("Choose valid garden preferences.", "error")
+    description = request.form.get("description", "").strip()
+    if not description:
+        flash("Add a short description of your garden.", "error")
         return redirect(url_for("questions"))
 
     with sqlite3.connect(DATABASE) as connection:
         connection.execute(
-            """INSERT INTO gardens (user_id, sun, water, experience, rows, columns)
-               VALUES (?, ?, ?, ?, ?, ?)
+            """INSERT INTO gardens (user_id, sun, water, experience, rows, columns, description)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
-                   sun = excluded.sun,
-                   water = excluded.water,
-                   experience = excluded.experience,
                    rows = excluded.rows,
-                   columns = excluded.columns""",
-            (user_id, sun, water, experience, rows, columns),
+                   columns = excluded.columns,
+                   description = excluded.description""",
+            (user_id, "sunny", "high", "beginner", rows, columns, description[:500]),
         )
     return redirect(url_for("garden"))
 

@@ -41,6 +41,15 @@ input[type="number"] {
     border-radius: 6px;
 }
 
+textarea {
+    width: 100%;
+    padding: 11px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    font: inherit;
+    resize: vertical;
+}
+
 input[type="radio"] {
     width: auto;
 }

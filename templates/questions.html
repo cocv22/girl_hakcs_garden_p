@@ -23,33 +23,19 @@
 
         <form action="{{ url_for('garden') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="setup">
 
             <h2>What size should your garden grid be?</h2>
             <p>Choose the number of rows and columns (3 to 30 each). Every tile starts with 5 growth points.</p>
-
-            <label for="sun">Sunlight</label>
-            <select id="sun" name="sun">
-                <option value="sunny" {% if not preferences or preferences['sun'] == 'sunny' %}selected{% endif %}>Sunny</option>
-                <option value="shady" {% if preferences and preferences['sun'] == 'shady' %}selected{% endif %}>Shady</option>
-            </select>
-
-            <label for="water">Water availability</label>
-            <select id="water" name="water">
-                <option value="high" {% if not preferences or preferences['water'] == 'high' %}selected{% endif %}>Regular watering</option>
-                <option value="low" {% if preferences and preferences['water'] == 'low' %}selected{% endif %}>Limited watering</option>
-            </select>
-
-            <label for="experience">Gardening experience</label>
-            <select id="experience" name="experience">
-                <option value="beginner" {% if not preferences or preferences['experience'] == 'beginner' %}selected{% endif %}>Beginner</option>
-                <option value="experienced" {% if preferences and preferences['experience'] == 'experienced' %}selected{% endif %}>Experienced</option>
-            </select>
 
             <label for="rows">Rows</label>
             <input id="rows" type="number" name="rows" min="3" max="30" value="{{ preferences['rows'] if preferences else 20 }}" required>
 
             <label for="columns">Columns</label>
             <input id="columns" type="number" name="columns" min="3" max="30" value="{{ preferences['columns'] if preferences else 20 }}" required>
+
+            <label for="description">Short description of your garden</label>
+            <textarea id="description" name="description" maxlength="500" rows="3" required>{{ preferences['description'] if preferences else '' }}</textarea>
 
             <br>
 
