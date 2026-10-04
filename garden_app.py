@@ -199,8 +199,8 @@ def GetTier(value, tiers):
     return max(0, low - 1)
 
 
-TIERS1 = []
-NEGATIVE_TIERS = []
+TIERS1 = [0,2,5,15,30,70,200,400]
+NEGATIVE_TIERS = [1,5,20,70,350]
 
 
 def GetTileTier(Garden, x, y):
@@ -451,7 +451,12 @@ def garden():
             viewing_name = buddy["name"]
         else:
             viewing_name = None
+        tile_tiers = [
+            [GetTileTier(grid, row_index, column_index) for column_index in range(len(row))]
+            for row_index, row in enumerate(grid)
+        ] if grid else []
         return render_template("garden.html", plants=plants, needs_setup=needs_setup, grid=grid,
+                               tile_tiers=tile_tiers,
                                offers=offers, buddies=buddies, viewing_name=viewing_name,
                                garden_description=garden_description, checkin_due=checkin_due,
                                daily_goal=preferences["daily_goal"] if preferences else "",
